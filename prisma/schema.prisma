@@ -1,0 +1,223 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER MODEL
+// ============================================
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   // Hashed with bcrypt
+  firstName String
+  lastName  String
+  role      UserRole @default(WORKER)
+  isActive  Boolean  @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  assignments Assignment[]
+  notes       Note[]
+  completedTasks TaskCompletion[]
+  
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+enum UserRole {
+  WORKER      // Care worker
+  ADMIN       // Administrator/Manager
+}
+
+// ============================================
+// CLIENT MODEL
+// ============================================
+model Client {
+  id          String   @id @default(cuid())
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime?
+  address     String?
+  phone       String?
+  email       String?
+  
+  // Medical Information (stored as JSON)
+  conditions  String?  // JSON array of conditions
+  allergies   String?  // JSON array of allergies
+  carePlan    String?  // Text description
+  
+  // Emergency Contact
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  emergencyContactRelation String?
+  
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  assignments Assignment[]
+  tasks       Task[]
+  notes       Note[]
+  files       File[]
+  
+  @@index([lastName, firstName])
+  @@index([isActive])
+  @@map("clients")
+}
+
+// ============================================
+// ASSIGNMENT MODEL (Many-to-Many)
+// ============================================
+model Assignment {
+  id        String   @id @default(cuid())
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  assignedAt DateTime @default(now())
+  assignedBy String?  // ID of admin who made assignment
+  isActive   Boolean  @default(true)
+  
+  @@unique([userId, clientId])
+  @@index([userId])
+  @@index([clientId])
+  @@index([isActive])
+  @@map("assignments")
+}
+
+// ============================================
+// TASK MODEL
+// ============================================
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  category    TaskCategory @default(GENERAL)
+  priority    TaskPriority @default(NORMAL)
+  
+  clientId    String
+  client      Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  isRecurring Boolean    @default(false)
+  dueDate     DateTime?
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  createdBy   String?    // Admin who created the task
+  
+  // Relations
+  completions TaskCompletion[]
+  
+  @@index([clientId])
+  @@index([dueDate])
+  @@index([category])
+  @@map("tasks")
+}
+
+enum TaskCategory {
+  PERSONAL_CARE     // Bathing, grooming, dressing
+  MEDICATION        // Medication administration
+  MEAL_PREP         // Meal preparation
+  MOBILITY          // Assistance with movement
+  HOUSEKEEPING      // Light cleaning
+  COMPANIONSHIP     // Social interaction
+  HEALTH_MONITORING // Vital signs, observations
+  GENERAL           // Other tasks
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+// ============================================
+// TASK COMPLETION MODEL
+// ============================================
+model TaskCompletion {
+  id          String   @id @default(cuid())
+  
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  completedBy String
+  user        User     @relation(fields: [completedBy], references: [id])
+  
+  completedAt DateTime @default(now())
+  notes       String?  // Optional completion notes
+  
+  @@index([taskId])
+  @@index([completedBy])
+  @@index([completedAt])
+  @@map("task_completions")
+}
+
+// ============================================
+// NOTE MODEL
+// ============================================
+model Note {
+  id        String     @id @default(cuid())
+  content   String
+  category  NoteCategory @default(PROGRESS)
+  
+  clientId  String
+  client    Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  authorId  String
+  author    User       @relation(fields: [authorId], references: [id])
+  
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  
+  @@index([clientId])
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([category])
+  @@map("notes")
+}
+
+enum NoteCategory {
+  PROGRESS      // General progress note
+  OBSERVATION   // Health observation
+  INCIDENT      // Incident report
+  COMMUNICATION // Communication with family/doctor
+  GENERAL       // Other notes
+}
+
+// ============================================
+// FILE MODEL
+// ============================================
+model File {
+  id          String   @id @default(cuid())
+  filename    String   // R2 key (path in bucket)
+  originalName String
+  mimeType    String
+  size        Int      // In bytes
+  url         String   // Cloudflare R2 public URL
+  
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  uploadedBy  String   // User ID
+  uploadedAt  DateTime @default(now())
+  
+  @@index([clientId])
+  @@index([uploadedAt])
+  @@map("files")
+}
