@@ -1,7 +1,8 @@
 import bcrypt from 'bcrypt'
-import { prisma } from '@/shared/database/prisma'
+
 import { UserRole } from '@prisma/client'
 import { JWTService } from './jwt.service'
+import { prisma } from '../../shared/database/prisma'
 
 interface RegisterUserInput {
   email: string
