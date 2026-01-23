@@ -1,13 +1,20 @@
+// src/modules/clients/clients.routes.ts
 import { FastifyInstance } from 'fastify'
 import * as clientsController from './clients.controller'
+import * as tasksController from '../tasks/tasks.controller'
 import { authMiddleware } from '../../shared/middleware/auth.middleware'
 
 export async function clientsRoutes(server: FastifyInstance) {
   server.addHook('preHandler', authMiddleware)
 
+  // List clients for logged-in worker
   server.get('/', clientsController.listClients)
 
+  // Get single client
   server.get('/:id', clientsController.getClient)
+
+  // Get tasks for client
+  server.get('/:id/tasks', tasksController.getClientTasks)
 
   // Create client (admin only - we'll add role check later)
   server.post('/', {
