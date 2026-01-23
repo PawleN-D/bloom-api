@@ -1,3 +1,4 @@
+// src/modules/auth/auth.service.test.ts
 import { AuthService } from './auth.service'
 import { prisma } from '../../../tests/setup'
 import { UserRole } from '@prisma/client'
@@ -59,7 +60,7 @@ describe('AuthService', () => {
     it('should create users with different roles', async () => {
       // Arrange
       const workerData = {
-        email: 'worker@test.com',
+        email: 'unique-worker@test.com',
         password: 'SecurePass123!',
         firstName: 'Worker',
         lastName: 'One',
@@ -67,7 +68,7 @@ describe('AuthService', () => {
       }
 
       const adminData = {
-        email: 'admin@test.com',
+        email: 'unique-admin@test.com',
         password: 'SecurePass123!',
         firstName: 'Admin',
         lastName: 'One',

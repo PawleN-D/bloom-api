@@ -13,22 +13,14 @@ afterAll(async () => {
 })
 
 afterEach(async () => {
-  // Clean database after each test
-  const tablenames = await prisma.$queryRaw<
-    Array<{ tablename: string }>
-  >`SELECT tablename FROM pg_tables WHERE schemaname='public'`
-
-  for (const { tablename } of tablenames) {
-    if (tablename !== '_prisma_migrations') {
-      try {
-        await prisma.$executeRawUnsafe(
-          `TRUNCATE TABLE "public"."${tablename}" CASCADE;`
-        )
-      } catch (error) {
-        console.log({ error })
-      }
-    }
-  }
+  // Clean database after each test - delete in correct order to avoid FK constraints
+  await prisma.taskCompletion.deleteMany({})
+  await prisma.task.deleteMany({})
+  await prisma.note.deleteMany({})
+  await prisma.file.deleteMany({})
+  await prisma.assignment.deleteMany({})
+  await prisma.client.deleteMany({})
+  await prisma.user.deleteMany({})
 })
 
 export { prisma }
