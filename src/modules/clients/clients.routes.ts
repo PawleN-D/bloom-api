@@ -2,6 +2,7 @@
 import { FastifyInstance } from 'fastify'
 import * as clientsController from './clients.controller'
 import * as tasksController from '../tasks/tasks.controller'
+import * as notesController from '../notes/notes.controller'
 import { authMiddleware } from '../../shared/middleware/auth.middleware'
 
 export async function clientsRoutes(server: FastifyInstance) {
@@ -15,6 +16,8 @@ export async function clientsRoutes(server: FastifyInstance) {
 
   // Get tasks for client
   server.get('/:id/tasks', tasksController.getClientTasks)
+
+   server.get('/:id/notes', notesController.getClientNotes)
 
   // Create client (admin only - we'll add role check later)
   server.post('/', {
