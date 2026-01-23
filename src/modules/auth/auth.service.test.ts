@@ -1,4 +1,3 @@
-// src/modules/auth/auth.service.test.ts
 import { AuthService } from './auth.service'
 import { prisma } from '../../../tests/setup'
 import { UserRole } from '@prisma/client'

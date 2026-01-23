@@ -1,4 +1,3 @@
-// src/modules/auth/jwt.service.test.ts
 import { JWTService } from './jwt.service'
 
 describe('JWTService', () => {

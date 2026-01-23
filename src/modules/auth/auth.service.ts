@@ -1,4 +1,3 @@
-// src/modules/auth/auth.service.ts
 import bcrypt from 'bcrypt'
 import { prisma } from '@/shared/database/prisma'
 import { UserRole } from '@prisma/client'
