@@ -54,6 +54,9 @@ async function registerRoutes() {
 
   const { tasksRoutes } = await import("./modules/tasks/tasks.routes");
   await server.register(tasksRoutes, { prefix: "/api/tasks" });
+
+  const { notesRoutes } = await import("./modules/notes/notes.routes");
+  await server.register(notesRoutes, { prefix: "/api/notes" });
 }
 
 // Start server
