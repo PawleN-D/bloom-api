@@ -20,4 +20,5 @@ module.exports = {
     },
   },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
+  maxWorkers: 1,
 }

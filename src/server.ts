@@ -1,53 +1,64 @@
-import Fastify from "fastify";
-import cors from "@fastify/cors";
-import helmet from "@fastify/helmet";
-import { config } from "./config/env";
-import { authRoutes } from "./modules/auth/auth.routes";
+import Fastify from 'fastify'
+import cors from '@fastify/cors'
+import helmet from '@fastify/helmet'
+import { config } from './config/env'
 
+// Create Fastify instance
 const server = Fastify({
   logger: {
     level: config.logLevel,
-    transport:
-      config.nodeEnv === "development"
-        ? {
-            target: "pino-pretty",
-            options: {
-              colorize: true,
-              translateTime: "HH:MM:ss Z",
-              ignore: "pid,hostname",
-            },
-          }
-        : undefined,
-  },
-});
+    transport: config.nodeEnv === 'development' ? {
+      target: 'pino-pretty',
+      options: {
+        colorize: true,
+        translateTime: 'HH:MM:ss Z',
+        ignore: 'pid,hostname'
+      }
+    } : undefined
+  }
+})
 
+// Register plugins
 async function registerPlugins() {
+  // CORS
   await server.register(cors, {
     origin: config.frontendUrl,
-    credentials: true,
-  });
+    credentials: true
+  })
 
+  // Security headers
   await server.register(helmet, {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:"],
         scriptSrc: ["'self'"],
-      },
-    },
-  });
+        imgSrc: ["'self'", "data:", "https:"]
+      }
+    }
+  })
 }
 
+// Register routes
 async function registerRoutes() {
-     server.get('/health', async () => {
+  // Health check
+  server.get('/health', async () => {
     return { status: 'ok', timestamp: new Date().toISOString() }
   })
 
   // API routes
-  await server.register(authRoutes, { prefix: '/api/auth' }) 
+  console.log('📦 Registering auth routes...')
+  const { authRoutes } = await import('./modules/auth/auth.routes')
+  await server.register(authRoutes, { prefix: '/api/auth' })
+
+  console.log('📦 Registering clients routes...')
+  const { clientsRoutes } = await import('./modules/clients/clients.routes')
+  await server.register(clientsRoutes, { prefix: '/api/clients' })
+  
+  console.log('✅ All routes registered')
 }
 
+// Start server
 async function start() {
   try {
     await registerPlugins()
@@ -60,6 +71,10 @@ async function start() {
 
     console.log(`🚀 Server running on http://localhost:${config.port}`)
     console.log(`📝 Environment: ${config.nodeEnv}`)
+    
+    // List all registered routes
+    console.log('\n📋 Registered routes:')
+    server.printRoutes()
   } catch (err) {
     server.log.error(err)
     process.exit(1)
