@@ -1,6 +1,8 @@
+// src/modules/auth/auth.service.ts
 import bcrypt from 'bcrypt'
 import { prisma } from '@/shared/database/prisma'
 import { UserRole } from '@prisma/client'
+import { JWTService } from './jwt.service'
 
 interface RegisterUserInput {
   email: string
@@ -10,7 +12,27 @@ interface RegisterUserInput {
   role: UserRole
 }
 
+interface LoginResponse {
+  user: {
+    id: string
+    email: string
+    firstName: string
+    lastName: string
+    role: UserRole
+    isActive: boolean
+    createdAt: Date
+    updatedAt: Date
+  }
+  token: string
+}
+
 export class AuthService {
+  private jwtService: JWTService
+
+  constructor() {
+    this.jwtService = new JWTService()
+  }
+
   /**
    * Register a new user
    * @param data User registration data
@@ -55,13 +77,13 @@ export class AuthService {
   }
 
   /**
-   * Login user
+   * Login user and generate JWT token
    * @param email User email
    * @param password User password
-   * @returns User if credentials are valid
-   * @throws Error if credentials are invalid
+   * @returns User object and JWT token
+   * @throws Error if credentials are invalid or user is inactive
    */
-  async login(email: string, password: string) {
+  async login(email: string, password: string): Promise<LoginResponse> {
     // Find user
     const user = await prisma.user.findUnique({
       where: { email }
@@ -83,8 +105,44 @@ export class AuthService {
       throw new Error('Invalid credentials')
     }
 
+    // Generate JWT token
+    const token = this.jwtService.generateToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role
+    })
+
     // Return user without password
     const { password: _, ...userWithoutPassword } = user
-    return userWithoutPassword
+
+    return {
+      user: userWithoutPassword,
+      token
+    }
+  }
+
+  /**
+   * Verify JWT token and get user
+   * @param token JWT token string
+   * @returns User information from token
+   * @throws Error if token is invalid
+   */
+  async verifyToken(token: string) {
+    const decoded = this.jwtService.verifyToken(token)
+    
+    // Optionally: Verify user still exists and is active
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId }
+    })
+
+    if (!user || !user.isActive) {
+      throw new Error('User not found or inactive')
+    }
+
+    return {
+      userId: decoded.userId,
+      email: decoded.email,
+      role: decoded.role
+    }
   }
 }
