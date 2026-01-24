@@ -1,3 +1,4 @@
+// src/modules/clients/clients.controller.ts
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { ClientsService } from './clients.service'
 
@@ -40,11 +41,11 @@ export async function listClients(
 }
 
 export async function getClient(
-  request: FastifyRequest<{ Params: { id: string } }>,
+  request: FastifyRequest,
   reply: FastifyReply
 ) {
   try {
-    const { id } = request.params
+    const { id } = request.params as { id: string }
     const client = await clientsService.getClientById(id)
 
     if (!client) {
@@ -68,11 +69,11 @@ export async function getClient(
 }
 
 export async function createClient(
-  request: FastifyRequest<{ Body: CreateClientBody }>,
+  request: FastifyRequest,
   reply: FastifyReply
 ) {
   try {
-    const data = request.body
+    const data = request.body as CreateClientBody
 
     // Convert arrays to JSON strings for storage
     const clientData = {
@@ -98,15 +99,12 @@ export async function createClient(
 }
 
 export async function updateClient(
-  request: FastifyRequest<{ 
-    Params: { id: string }
-    Body: Partial<CreateClientBody>
-  }>,
+  request: FastifyRequest,
   reply: FastifyReply
 ) {
   try {
-    const { id } = request.params
-    const data = request.body
+    const { id } = request.params as { id: string }
+    const data = request.body as Partial<CreateClientBody>
 
     const clientData = {
       ...data,
@@ -131,11 +129,11 @@ export async function updateClient(
 }
 
 export async function deleteClient(
-  request: FastifyRequest<{ Params: { id: string } }>,
+  request: FastifyRequest,
   reply: FastifyReply
 ) {
   try {
-    const { id } = request.params
+    const { id } = request.params as { id: string }
     await clientsService.deleteClient(id)
 
     return reply.status(200).send({
