@@ -23,7 +23,10 @@ const server = Fastify({
 
 async function registerPlugins() {
   await server.register(cors, {
-    origin: config.frontendUrl,
+    origin: [
+      config.frontendUrl,                // likely http://localhost:3000
+      "http://192.168.208.1:3000"        // your current network origin
+    ],
     credentials: true,
   });
 
