@@ -1,7 +1,9 @@
+// src/modules/tasks/tasks.controller.ts
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { TasksService } from './tasks.service'
 import { TaskCategory, TaskPriority } from '@prisma/client'
 
+// Dependency Inversion - controller depends on service abstraction
 const tasksService = new TasksService()
 
 interface CreateTaskBody {
@@ -17,6 +19,11 @@ interface CreateTaskBody {
 interface CompleteTaskBody {
   notes?: string
 }
+
+/**
+ * Single Responsibility: Handle HTTP requests/responses only
+ * Business logic is in TasksService
+ */
 
 export async function listTasks(
   request: FastifyRequest,
@@ -40,11 +47,11 @@ export async function listTasks(
 }
 
 export async function createTask(
-  request: FastifyRequest<{ Body: CreateTaskBody }>,
+  request: FastifyRequest,
   reply: FastifyReply
 ) {
   try {
-    const data = request.body
+    const data = request.body as CreateTaskBody
 
     const task = await tasksService.createTask({
       ...data,
@@ -65,15 +72,12 @@ export async function createTask(
 }
 
 export async function completeTask(
-  request: FastifyRequest<{ 
-    Params: { id: string }
-    Body: CompleteTaskBody
-  }>,
+  request: FastifyRequest,
   reply: FastifyReply
 ) {
   try {
-    const { id } = request.params
-    const { notes } = request.body
+    const { id } = request.params as { id: string }
+    const { notes } = request.body as CompleteTaskBody
     const user = (request as any).user
 
     const completion = await tasksService.completeTask(id, user.userId, notes)
@@ -93,11 +97,11 @@ export async function completeTask(
 }
 
 export async function getClientTasks(
-  request: FastifyRequest<{ Params: { id: string } }>,
+  request: FastifyRequest,
   reply: FastifyReply
 ) {
   try {
-    const { id } = request.params
+    const { id } = request.params as { id: string }
     const tasks = await tasksService.getTasksForClient(id)
 
     return reply.status(200).send({
