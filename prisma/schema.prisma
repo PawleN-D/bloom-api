@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,9 +7,132 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  WORKER
-  ADMIN
+model assignments {
+  id        String   @id
+  userId    String
+  clientId  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  clients   clients  @relation(fields: [clientId], references: [id])
+  users     users    @relation(fields: [userId], references: [id])
+
+  @@unique([userId, clientId])
+  @@index([clientId])
+  @@index([userId])
+}
+
+model clients {
+  id                       String        @id
+  firstName                String
+  lastName                 String
+  dateOfBirth              DateTime?
+  address                  String?
+  phone                    String?
+  email                    String?
+  conditions               String?
+  allergies                String?
+  carePlan                 String?
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+  emergencyContactRelation String?
+  isActive                 Boolean       @default(true)
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime
+  assignments              assignments[]
+  files                    files[]
+  notes                    notes[]
+  tasks                    tasks[]
+
+  @@index([lastName])
+}
+
+model files {
+  id           String   @id
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  url          String
+  clientId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  clients      clients  @relation(fields: [clientId], references: [id])
+
+  @@index([clientId])
+}
+
+model notes {
+  id        String       @id
+  content   String
+  category  NoteCategory @default(GENERAL)
+  clientId  String
+  authorId  String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime
+  users     users        @relation(fields: [authorId], references: [id])
+  clients   clients      @relation(fields: [clientId], references: [id])
+
+  @@index([authorId])
+  @@index([clientId])
+  @@index([createdAt])
+}
+
+model task_completions {
+  id          String   @id
+  taskId      String
+  completedBy String
+  completedAt DateTime @default(now())
+  notes       String?
+  createdAt   DateTime @default(now())
+  users       users    @relation(fields: [completedBy], references: [id])
+  tasks       tasks    @relation(fields: [taskId], references: [id])
+
+  @@index([completedBy])
+  @@index([taskId])
+}
+
+model tasks {
+  id               String             @id
+  title            String
+  description      String?
+  category         TaskCategory       @default(GENERAL)
+  priority         TaskPriority       @default(NORMAL)
+  clientId         String
+  isRecurring      Boolean            @default(false)
+  dueDate          DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  task_completions task_completions[]
+  clients          clients            @relation(fields: [clientId], references: [id])
+
+  @@index([clientId])
+  @@index([dueDate])
+}
+
+model users {
+  id               String             @id
+  email            String             @unique
+  password         String
+  firstName        String
+  lastName         String
+  role             UserRole           @default(WORKER)
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  assignments      assignments[]
+  notes            notes[]
+  task_completions task_completions[]
+
+  @@index([email])
+}
+
+enum NoteCategory {
+  PROGRESS
+  OBSERVATION
+  INCIDENT
+  COMMUNICATION
+  GENERAL
 }
 
 enum TaskCategory {
@@ -33,157 +153,7 @@ enum TaskPriority {
   URGENT
 }
 
-enum NoteCategory {
-  PROGRESS
-  OBSERVATION
-  INCIDENT
-  COMMUNICATION
-  GENERAL
-}
-
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  firstName String
-  lastName  String
-  role      UserRole @default(WORKER)
-  isActive  Boolean  @default(true)
-  
-  assignments      Assignment[]
-  taskCompletions  TaskCompletion[]
-  notes            Note[]
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([email])
-  @@map("users")
-}
-
-model Client {
-  id        String   @id @default(cuid())
-  firstName String
-  lastName  String
-  dateOfBirth DateTime?
-  address   String?
-  phone     String?
-  email     String?
-  
-  conditions              String? @db.Text
-  allergies               String? @db.Text
-  carePlan                String? @db.Text
-  emergencyContactName    String?
-  emergencyContactPhone   String?
-  emergencyContactRelation String?
-  
-  isActive  Boolean  @default(true)
-  
-  assignments Assignment[]
-  tasks       Task[]
-  notes       Note[]
-  files       File[]
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([lastName])
-  @@map("clients")
-}
-
-model Assignment {
-  id       String  @id @default(cuid())
-  isActive Boolean @default(true)
-  
-  userId   String
-  user     User   @relation(fields: [userId], references: [id])
-  
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id])
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([userId, clientId])
-  @@index([userId])
-  @@index([clientId])
-  @@map("assignments")
-}
-
-model Task {
-  id          String       @id @default(cuid())
-  title       String
-  description String?      @db.Text
-  category    TaskCategory @default(GENERAL)
-  priority    TaskPriority @default(NORMAL)
-  isRecurring Boolean      @default(false)
-  dueDate     DateTime?
-  
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id])
-  
-  completions TaskCompletion[]
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([clientId])
-  @@index([dueDate])
-  @@map("tasks")
-}
-
-model TaskCompletion {
-  id          String   @id @default(cuid())
-  notes       String?  @db.Text
-  completedAt DateTime @default(now())
-  
-  taskId String
-  task   Task   @relation(fields: [taskId], references: [id])
-  
-  completedBy String
-  user        User   @relation(fields: [completedBy], references: [id])
-  
-  createdAt DateTime @default(now())
-
-  @@index([taskId])
-  @@index([completedBy])
-  @@map("task_completions")
-}
-
-model Note {
-  id        String       @id @default(cuid())
-  content   String       @db.Text
-  category  NoteCategory @default(GENERAL)
-  
-  clientId  String
-  client    Client       @relation(fields: [clientId], references: [id])
-  
-  authorId  String
-  author    User         @relation(fields: [authorId], references: [id])
-  
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-
-  @@index([clientId])
-  @@index([authorId])
-  @@index([createdAt])
-  @@map("notes")
-}
-
-model File {
-  id           String  @id @default(cuid())
-  filename     String
-  originalName String
-  mimeType     String
-  size         Int
-  url          String
-  
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id])
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([clientId])
-  @@map("files")
+enum UserRole {
+  WORKER
+  ADMIN
 }
