@@ -10,6 +10,9 @@ declare module 'fastify' {
       plan: string;
       features: Record<string, boolean>;
       settings: Record<string, any>;
+      maxUsers: number;
+      maxClients: number;
+      trialEndsAt: Date | null;
     };
   }
 }
