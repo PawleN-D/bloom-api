@@ -8,7 +8,7 @@ export async function usersRoutes(server: FastifyInstance) {
   const usersService = new UsersService();
   
   // GET /api/users - List all users in organization
-  server.get('/api/users', {
+  server.get('/', {
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -24,7 +24,7 @@ export async function usersRoutes(server: FastifyInstance) {
   });
   
   // GET /api/users/:id - Get single user
-  server.get('/api/users/:id', {
+  server.get('/:id', {
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -42,7 +42,7 @@ export async function usersRoutes(server: FastifyInstance) {
   });
   
   // POST /api/users - Create new user (invite)
-  server.post('/api/users', {
+  server.post('/', {
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -58,7 +58,7 @@ export async function usersRoutes(server: FastifyInstance) {
   });
   
   // PUT /api/users/:id - Update user
-  server.put('/api/users/:id', {
+  server.put('/:id', {
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -77,7 +77,7 @@ export async function usersRoutes(server: FastifyInstance) {
   });
   
   // PUT /api/users/:id/role - Change user role (ORG_OWNER only)
-  server.put('/api/users/:id/role', {
+  server.put('/:id/role', {
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -97,7 +97,7 @@ export async function usersRoutes(server: FastifyInstance) {
   });
   
   // DELETE /api/users/:id - Deactivate user (soft delete)
-  server.delete('/api/users/:id', {
+  server.delete('/:id', {
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -116,7 +116,7 @@ export async function usersRoutes(server: FastifyInstance) {
   });
   
   // POST /api/users/:id/reactivate - Reactivate user
-  server.post('/api/users/:id/reactivate', {
+  server.post('/:id/reactivate', {
     preHandler: [
       authMiddleware,
       tenantContext,

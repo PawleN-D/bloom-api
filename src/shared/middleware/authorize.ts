@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
+import { UserRole } from '@prisma/client';
 
 export enum Permission {
   // User management
@@ -34,7 +35,7 @@ export enum Permission {
   DELETE_NOTE = 'delete:note',
 }
 
-type Role = 'SUPER_ADMIN' | 'ORG_OWNER' | 'ADMIN' | 'MANAGER' | 'WORKER';
+type Role = UserRole;
 
 const rolePermissions: Record<Role, Permission[]> = {
   SUPER_ADMIN: Object.values(Permission), // All permissions
@@ -119,7 +120,7 @@ const rolePermissions: Record<Role, Permission[]> = {
  */
 export function authorize(...permissions: Permission[]) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = (request as any).user;
+    const user = request.user;
     
     if (!user) {
       return reply.status(401).send({

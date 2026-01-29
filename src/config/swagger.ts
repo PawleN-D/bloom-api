@@ -4,6 +4,7 @@ import swaggerUI from '@fastify/swagger-ui';
 
 export async function setupSwagger(server: FastifyInstance) {
   await server.register(swagger, {
+    mode:'dynamic',
     openapi: {
       openapi: '3.0.0',
       info: {

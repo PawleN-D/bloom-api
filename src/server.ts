@@ -36,8 +36,9 @@ async function registerPlugins() {
       directives: {
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"],
       },
     },
   });
@@ -61,14 +62,23 @@ async function registerRoutes() {
 
   const { notesRoutes } = await import("./modules/notes/notes.routes");
   await server.register(notesRoutes, { prefix: "/api/notes" });
+
+  const { usersRoutes } = await import("./modules/users/users.routes");
+  await server.register(usersRoutes, { prefix: "/api/users" });
+
+  const { organizationsRoutes } = await import("./modules/organizations/organizations.routes");
+  await server.register(organizationsRoutes, { prefix: "/api/organization" });
+
+  const { adminRoutes } = await import("./modules/admin/admin.routes");
+  await server.register(adminRoutes, { prefix: "/api/admin" });
 }
 
 // Start server
 async function start() {
   try {
     await registerPlugins();
-    await registerRoutes();
     await setupSwagger(server);
+    await registerRoutes();
 
     await server.listen({
       port: config.port,

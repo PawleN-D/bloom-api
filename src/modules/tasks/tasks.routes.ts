@@ -6,128 +6,73 @@ import { TasksService } from './tasks.service';
 
 export async function tasksRoutes(server: FastifyInstance) {
   const tasksService = new TasksService();
-  
-  // GET /api/tasks
-  server.get('/api/tasks', {
+
+  server.get('/', {
+    schema: {
+      tags: ['Tasks'],
+      summary: 'List tasks',
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            data: { type: 'array', items: { type: 'object' } },
+          },
+        },
+      },
+    },
     preHandler: [
       authMiddleware,
       tenantContext,
-      authorize(Permission.READ_TASK)
-    ]
-  }, async (request, reply) => {
-    try {
-      const tasks = await tasksService.getTasks(request, request.query);
-      return reply.send({ data: tasks });
-    } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
-    }
+      authorize(Permission.READ_TASK),
+    ],
+  }, async (request) => {
+    const tasks = await tasksService.getTasks(request, request.query);
+    return { data: tasks };
   });
-  
-  // GET /api/tasks/:id
-  server.get('/api/tasks/:id', {
+
+  server.get('/:id', {
+    schema: {
+      tags: ['Tasks'],
+      summary: 'Get task by ID',
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+        required: ['id'],
+      },
+    },
     preHandler: [
       authMiddleware,
       tenantContext,
-      authorize(Permission.READ_TASK)
-    ]
-  }, async (request, reply) => {
-    try {
-      const { id } = request.params as any;
-      const task = await tasksService.getTask(request, id);
-      return reply.send({ data: task });
-    } catch (error: any) {
-      const status = error.message === 'Task not found' ? 404 : 500;
-      return reply.status(status).send({ error: error.message });
-    }
+      authorize(Permission.READ_TASK),
+    ],
+  }, async (request: any) => {
+    return {
+      data: await tasksService.getTask(request, request.params.id),
+    };
   });
-  
-  // POST /api/tasks
-  server.post('/api/tasks', {
+
+  server.post('/', {
+    schema: {
+      tags: ['Tasks'],
+      summary: 'Create task',
+      body: {
+        type: 'object',
+        required: ['title'],
+        properties: {
+          title: { type: 'string' },
+          description: { type: 'string' },
+        },
+      },
+    },
     preHandler: [
       authMiddleware,
       tenantContext,
-      authorize(Permission.CREATE_TASK)
-    ]
-  }, async (request, reply) => {
-    try {
-      const task = await tasksService.createTask(request, request.body);
-      return reply.status(201).send({ data: task });
-    } catch (error: any) {
-      return reply.status(500).send({ error: error.message });
-    }
-  });
-  
-  // PUT /api/tasks/:id
-  server.put('/api/tasks/:id', {
-    preHandler: [
-      authMiddleware,
-      tenantContext,
-      authorize(Permission.UPDATE_TASK)
-    ]
-  }, async (request, reply) => {
-    try {
-      const { id } = request.params as any;
-      const task = await tasksService.updateTask(request, id, request.body);
-      return reply.send({ data: task });
-    } catch (error: any) {
-      const status = error.message === 'Task not found' ? 404 : 500;
-      return reply.status(status).send({ error: error.message });
-    }
-  });
-  
-  // DELETE /api/tasks/:id
-  server.delete('/api/tasks/:id', {
-    preHandler: [
-      authMiddleware,
-      tenantContext,
-      authorize(Permission.DELETE_TASK)
-    ]
-  }, async (request, reply) => {
-    try {
-      const { id } = request.params as any;
-      const result = await tasksService.deleteTask(request, id);
-      return reply.send(result);
-    } catch (error: any) {
-      const status = error.message === 'Task not found' ? 404 : 500;
-      return reply.status(status).send({ error: error.message });
-    }
-  });
-  
-  // POST /api/tasks/:id/complete
-  server.post('/api/tasks/:id/complete', {
-    preHandler: [
-      authMiddleware,
-      tenantContext,
-      authorize(Permission.COMPLETE_TASK)
-    ]
-  }, async (request, reply) => {
-    try {
-      const { id } = request.params as any;
-      const { notes } = request.body as any;
-      const result = await tasksService.completeTask(request, id, notes);
-      return reply.send(result);
-    } catch (error: any) {
-      const status = error.message === 'Task not found' ? 404 : 500;
-      return reply.status(status).send({ error: error.message });
-    }
-  });
-  
-  // POST /api/tasks/:id/assign
-  server.post('/api/tasks/:id/assign', {
-    preHandler: [
-      authMiddleware,
-      tenantContext,
-      authorize(Permission.ASSIGN_TASK)
-    ]
-  }, async (request, reply) => {
-    try {
-      const { id } = request.params as any;
-      const { userId } = request.body as any;
-      const result = await tasksService.assignTask(request, id, userId);
-      return reply.send(result);
-    } catch (error: any) {
-      const status = error.message.includes('not found') ? 404 : 500;
-      return reply.status(status).send({ error: error.message });
-    }
+      authorize(Permission.CREATE_TASK),
+    ],
+  }, async (request: any, reply) => {
+    const task = await tasksService.createTask(request, request.body);
+    return reply.code(201).send({ data: task });
   });
 }

@@ -1,4 +1,5 @@
 import { JWTService } from './jwt.service'
+import { UserRole } from '@prisma/client'
 
 describe('JWTService', () => {
   let jwtService: JWTService
@@ -20,7 +21,7 @@ describe('JWTService', () => {
       const payload = {
         userId: 'user-123',
         email: 'test@test.com',
-        role: 'WORKER'
+        role: UserRole.WORKER
       }
 
       const token = jwtService.generateToken(payload)
@@ -34,12 +35,12 @@ describe('JWTService', () => {
       const payload1 = {
         userId: 'user-1',
         email: 'user1@test.com',
-        role: 'WORKER'
+        role: UserRole.WORKER
       }
       const payload2 = {
         userId: 'user-2',
         email: 'user2@test.com',
-        role: 'ADMIN'
+        role: UserRole.ADMIN
       }
 
       const token1 = jwtService.generateToken(payload1)
@@ -54,7 +55,7 @@ describe('JWTService', () => {
       const payload = {
         userId: 'user-123',
         email: 'test@test.com',
-        role: 'WORKER'
+        role: UserRole.WORKER
       }
       const token = jwtService.generateToken(payload)
 
@@ -77,7 +78,7 @@ describe('JWTService', () => {
       const payload = {
         userId: 'user-123',
         email: 'test@test.com',
-        role: 'WORKER'
+        role: UserRole.WORKER
       }
       const token = jwtService.generateToken(payload)
 

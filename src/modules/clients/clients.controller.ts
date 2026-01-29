@@ -24,8 +24,7 @@ export async function listClients(
   reply: FastifyReply
 ) {
   try {
-    const user = (request as any).user
-    const clients = await clientsService.getClientsForWorker(user.userId)
+    const clients = await clientsService.getClients(request, request.query)
 
     return reply.status(200).send({
       success: true,
@@ -46,14 +45,7 @@ export async function getClient(
 ) {
   try {
     const { id } = request.params as { id: string }
-    const client = await clientsService.getClientById(id)
-
-    if (!client) {
-      return reply.status(404).send({
-        success: false,
-        error: 'Client not found'
-      })
-    }
+    const client = await clientsService.getClient(request, id)
 
     return reply.status(200).send({
       success: true,
@@ -83,7 +75,7 @@ export async function createClient(
       allergies: data.allergies ? JSON.stringify(data.allergies) : undefined
     }
 
-    const client = await clientsService.createClient(clientData)
+    const client = await clientsService.createClient(request, clientData)
 
     return reply.status(201).send({
       success: true,
@@ -113,7 +105,7 @@ export async function updateClient(
       allergies: data.allergies ? JSON.stringify(data.allergies) : undefined
     }
 
-    const client = await clientsService.updateClient(id, clientData)
+    const client = await clientsService.updateClient(request, id, clientData)
 
     return reply.status(200).send({
       success: true,
@@ -134,11 +126,11 @@ export async function deleteClient(
 ) {
   try {
     const { id } = request.params as { id: string }
-    await clientsService.deleteClient(id)
+    const result = await clientsService.deleteClient(request, id)
 
     return reply.status(200).send({
       success: true,
-      message: 'Client deleted successfully'
+      ...result
     })
   } catch (error) {
     request.log.error(error)

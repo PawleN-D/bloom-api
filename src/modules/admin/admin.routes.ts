@@ -20,7 +20,7 @@ export async function adminRoutes(server: FastifyInstance) {
   };
   
   // GET /api/admin/organizations - List all organizations
-  server.get('/api/admin/organizations', {
+  server.get('/organizations', {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {
@@ -32,7 +32,7 @@ export async function adminRoutes(server: FastifyInstance) {
   });
   
   // GET /api/admin/organizations/:id - Get organization details
-  server.get('/api/admin/organizations/:id', {
+  server.get('/organizations/:id', {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {
@@ -46,7 +46,7 @@ export async function adminRoutes(server: FastifyInstance) {
   });
   
   // POST /api/admin/organizations - Create new organization
-  server.post('/api/admin/organizations', {
+  server.post('/organizations', {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {
@@ -58,7 +58,7 @@ export async function adminRoutes(server: FastifyInstance) {
   });
   
   // PUT /api/admin/organizations/:id - Update organization
-  server.put('/api/admin/organizations/:id', {
+  server.put('/organizations/:id', {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {
@@ -72,7 +72,7 @@ export async function adminRoutes(server: FastifyInstance) {
   });
   
   // POST /api/admin/organizations/:id/suspend - Suspend organization
-  server.post('/api/admin/organizations/:id/suspend', {
+  server.post('/organizations/:id/suspend', {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {
@@ -86,7 +86,7 @@ export async function adminRoutes(server: FastifyInstance) {
   });
   
   // POST /api/admin/organizations/:id/unsuspend - Unsuspend organization
-  server.post('/api/admin/organizations/:id/unsuspend', {
+  server.post('/organizations/:id/unsuspend', {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {
@@ -100,9 +100,9 @@ export async function adminRoutes(server: FastifyInstance) {
   });
   
   // GET /api/admin/stats - Platform statistics
-  server.get('/api/admin/stats', {
+  server.get('/stats', {
     preHandler: [authMiddleware, requireSuperAdmin]
-  }, async (request, reply) => {
+  }, async (_request, reply) => {
     try {
       const stats = await adminService.getPlatformStats();
       return reply.send({ data: stats });
@@ -112,9 +112,9 @@ export async function adminRoutes(server: FastifyInstance) {
   });
   
   // GET /api/admin/features - List all features
-  server.get('/api/admin/features', {
+  server.get('/features', {
     preHandler: [authMiddleware, requireSuperAdmin]
-  }, async (request, reply) => {
+  }, async (_request, reply) => {
     try {
       const features = await adminService.listFeatures();
       return reply.send({ data: features });
@@ -124,7 +124,7 @@ export async function adminRoutes(server: FastifyInstance) {
   });
   
   // POST /api/admin/features - Create new feature
-  server.post('/api/admin/features', {
+  server.post('/features', {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {

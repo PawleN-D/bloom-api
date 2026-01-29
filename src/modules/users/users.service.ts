@@ -74,7 +74,7 @@ export class UsersService {
    * Create new user (invite to organization)
    */
   async createUser(request: FastifyRequest, data: any) {
-    const currentUser = (request as any).user;
+    const currentUser = request.user;
     const org = request.organization;
     
     if (!org) {
@@ -92,7 +92,7 @@ export class UsersService {
     
     // Validate role assignment
     const requestedRole = data.role || 'WORKER';
-    if (!canManageUser(currentUser.role, requestedRole)) {
+    if (!currentUser || !canManageUser(currentUser.role, requestedRole)) {
       throw new Error(`You cannot create users with role: ${requestedRole}`);
     }
     
@@ -149,7 +149,7 @@ export class UsersService {
    * Update user
    */
   async updateUser(request: FastifyRequest, id: string, data: any) {
-    const currentUser = (request as any).user;
+    const currentUser = request.user;
     
     // Verify user belongs to organization
     const existing = await prisma.user.findUnique({
@@ -161,7 +161,7 @@ export class UsersService {
     }
     
     // Check permissions
-    if (!canManageUser(currentUser.role, existing.role)) {
+    if (!currentUser || !canManageUser(currentUser.role, existing.role)) {
       throw new Error('You do not have permission to update this user');
     }
     
@@ -205,7 +205,7 @@ export class UsersService {
    * Change user role (ORG_OWNER or higher only)
    */
   async changeUserRole(request: FastifyRequest, id: string, newRole: string) {
-    const currentUser = (request as any).user;
+    const currentUser = request.user;
     
     // Verify user belongs to organization
     const existing = await prisma.user.findUnique({
@@ -217,7 +217,7 @@ export class UsersService {
     }
     
     // Check if current user can manage both old and new roles
-    if (!canManageUser(currentUser.role, existing.role)) {
+    if (!currentUser || !canManageUser(currentUser.role, existing.role)) {
       throw new Error('You cannot manage this user');
     }
     
@@ -226,7 +226,7 @@ export class UsersService {
     // }
     
     // Prevent user from changing their own role
-    if (existing.id === currentUser.id) {
+    if (currentUser && existing.id === currentUser.id) {
       throw new Error('You cannot change your own role');
     }
     
@@ -252,7 +252,7 @@ export class UsersService {
    * Deactivate user (soft delete)
    */
   async deactivateUser(request: FastifyRequest, id: string) {
-    const currentUser = (request as any).user;
+    const currentUser = request.user;
     
     // Verify user belongs to organization
     const existing = await prisma.user.findUnique({
@@ -264,12 +264,12 @@ export class UsersService {
     }
     
     // Check permissions
-    if (!canManageUser(currentUser.role, existing.role)) {
+    if (!currentUser || !canManageUser(currentUser.role, existing.role)) {
       throw new Error('You do not have permission to deactivate this user');
     }
     
     // Prevent user from deactivating themselves
-    if (existing.id === currentUser.id) {
+    if (currentUser && existing.id === currentUser.id) {
       throw new Error('You cannot deactivate yourself');
     }
     

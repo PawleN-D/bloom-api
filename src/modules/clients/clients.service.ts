@@ -52,7 +52,6 @@ export class ClientsService {
    * Create client
    */
   async createClient(request: FastifyRequest, data: any) {
-    const user = (request as any).user;
     const org = request.organization;
     
     if (!org) {

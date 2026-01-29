@@ -6,6 +6,7 @@ export async function authRoutes(server: FastifyInstance) {
   // Register user
   server.post('/register', {
     schema: {
+      tags: ['Auth'],
       body: {
         type: 'object',
         required: ['email', 'password', 'firstName', 'lastName', 'role'],
@@ -14,7 +15,8 @@ export async function authRoutes(server: FastifyInstance) {
           password: { type: 'string', minLength: 8 },
           firstName: { type: 'string', minLength: 1 },
           lastName: { type: 'string', minLength: 1 },
-          role: { type: 'string', enum: ['WORKER', 'ADMIN'] }
+          role: { type: 'string', enum: ['WORKER', 'ADMIN', 'MANAGER', 'ORG_OWNER', 'SUPER_ADMIN'] },
+          organizationId: { type: 'string' }
         }
       }
     }
@@ -23,6 +25,7 @@ export async function authRoutes(server: FastifyInstance) {
   // Login
   server.post('/login', {
     schema: {
+      tags: ['Auth'],
       body: {
         type: 'object',
         required: ['email', 'password'],
@@ -36,6 +39,9 @@ export async function authRoutes(server: FastifyInstance) {
 
   // Get current user (protected route)
   server.get('/me', {
+    schema: {
+      tags: ['Auth'],
+    },
     preHandler: authMiddleware
   }, authController.getMe)
 }

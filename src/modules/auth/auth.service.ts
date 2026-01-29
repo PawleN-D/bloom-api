@@ -10,6 +10,7 @@ interface RegisterUserInput {
   firstName: string
   lastName: string
   role: UserRole
+  organizationId?: string | null
 }
 
 interface LoginResponse {
@@ -19,6 +20,7 @@ interface LoginResponse {
     firstName: string
     lastName: string
     role: UserRole
+    organizationId?: string | null
     isActive: boolean
     createdAt: Date
     updatedAt: Date
@@ -52,14 +54,31 @@ export class AuthService {
     // Hash password with bcrypt (10 rounds = ~100ms)
     const hashedPassword = await bcrypt.hash(data.password, 10)
 
+    if (data.role !== 'SUPER_ADMIN' && !data.organizationId) {
+      throw new Error('Organization required')
+    }
+
+    if (data.organizationId) {
+      const org = await prisma.organization.findUnique({
+        where: { id: data.organizationId },
+      })
+      if (!org || !org.active || org.suspended) {
+        throw new Error('Organization not found or inactive')
+      }
+    }
+
+    const userId = require('crypto').randomBytes(16).toString('hex')
+
     // Create user
     const user = await prisma.user.create({
       data: {
+        id: userId,
         email: data.email,
         password: hashedPassword,
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role,
+        organizationId: data.organizationId || null,
       }
     })
 
@@ -109,7 +128,8 @@ export class AuthService {
     const token = this.jwtService.generateToken({
       userId: user.id,
       email: user.email,
-      role: user.role
+      role: user.role,
+      organizationId: user.organizationId,
     })
 
     // Return user without password
@@ -142,7 +162,8 @@ export class AuthService {
     return {
       userId: decoded.userId,
       email: decoded.email,
-      role: decoded.role
+      role: decoded.role,
+      organizationId: user.organizationId,
     }
   }
 }

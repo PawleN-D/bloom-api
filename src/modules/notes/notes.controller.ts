@@ -16,8 +16,7 @@ export async function listNotes(
   reply: FastifyReply
 ) {
   try {
-    const user = (request as any).user
-    const notes = await notesService.getNotesForWorker(user.userId)
+    const notes = await notesService.getNotes(request, request.query)
 
     return reply.status(200).send({
       success: true,
@@ -37,14 +36,12 @@ export async function createNote(
   reply: FastifyReply
 ) {
   try {
-    const user = (request as any).user
     const { content, category, clientId } = request.body as CreateNoteBody
 
-    const note = await notesService.createNote({
+    const note = await notesService.createNote(request, {
       content,
       category,
-      clientId,
-      authorId: user.userId
+      clientId
     })
 
     return reply.status(201).send({
@@ -66,7 +63,7 @@ export async function getClientNotes(
 ) {
   try {
     const { id } = request.params as { id: string }
-    const notes = await notesService.getNotesForClient(id)
+    const notes = await notesService.getNotes(request, { clientId: id })
 
     return reply.status(200).send({
       success: true,

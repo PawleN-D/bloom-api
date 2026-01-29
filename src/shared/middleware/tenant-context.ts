@@ -1,19 +1,16 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
+import { Organization, UserRole } from '@prisma/client';
 import { prisma } from '../database/prisma';
 
 declare module 'fastify' {
   interface FastifyRequest {
-    organization?: {
+    user?: {
       id: string;
-      name: string;
-      slug: string;
-      plan: string;
-      features: Record<string, boolean>;
-      settings: Record<string, any>;
-      maxUsers: number;
-      maxClients: number;
-      trialEndsAt: Date | null;
+      email: string;
+      role: UserRole;
+      organizationId?: string | null;
     };
+    organization?: Organization;
   }
 }
 
@@ -25,10 +22,37 @@ export async function tenantContext(
   request: FastifyRequest,
   reply: FastifyReply
 ) {
-  const user = (request as any).user;
+  const user = request.user;
   
+  if (!user) {
+    return reply.status(401).send({
+      error: 'Unauthorized',
+      message: 'Authentication required',
+    });
+  }
+
   // Skip for super admin
   if (user?.role === 'SUPER_ADMIN') {
+    const orgId = request.headers['x-organization-id'];
+    if (!orgId || Array.isArray(orgId)) {
+      return reply.status(400).send({
+        error: 'Organization Required',
+        message: 'Provide x-organization-id header for tenant-scoped endpoints',
+      });
+    }
+
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+
+    if (!org || !org.active || org.suspended) {
+      return reply.status(403).send({
+        error: 'Organization Inactive',
+        message: 'Organization is inactive or suspended',
+      });
+    }
+
+    request.organization = org;
     return;
   }
   
@@ -51,7 +75,7 @@ export async function tenantContext(
     });
   }
   
-  request.organization = org as any;
+  request.organization = org;
 }
 
 /**

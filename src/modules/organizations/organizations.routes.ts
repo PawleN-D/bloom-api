@@ -8,7 +8,7 @@ export async function organizationsRoutes(server: FastifyInstance) {
   const organizationsService = new OrganizationsService();
   
   // GET /api/organization - Get current organization
-  server.get('/api/organization', {
+  server.get('/', {
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -23,7 +23,7 @@ export async function organizationsRoutes(server: FastifyInstance) {
   });
   
   // PUT /api/organization - Update organization settings
-  server.put('/api/organization', {
+  server.put('/', {
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -39,7 +39,7 @@ export async function organizationsRoutes(server: FastifyInstance) {
   });
   
   // GET /api/organization/stats - Get organization statistics
-  server.get('/api/organization/stats', {
+  server.get('/stats', {
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -54,7 +54,7 @@ export async function organizationsRoutes(server: FastifyInstance) {
   });
   
   // GET /api/organization/features - Get enabled features
-  server.get('/api/organization/features', {
+  server.get('/features', {
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -69,7 +69,7 @@ export async function organizationsRoutes(server: FastifyInstance) {
   });
   
   // POST /api/organization/features/:key - Enable feature
-  server.post('/api/organization/features/:key', {
+  server.post('/features/:key', {
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -89,7 +89,7 @@ export async function organizationsRoutes(server: FastifyInstance) {
   });
   
   // DELETE /api/organization/features/:key - Disable feature
-  server.delete('/api/organization/features/:key', {
+  server.delete('/features/:key', {
     preHandler: [
       authMiddleware,
       tenantContext,

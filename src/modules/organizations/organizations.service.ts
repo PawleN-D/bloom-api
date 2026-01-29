@@ -173,7 +173,7 @@ export class OrganizationsService {
     const allFeatures = await prisma.feature.findMany({
       where: {
         OR: [
-        //   { availableInPlans: { has: org.plan } },
+          { availableInPlans: { has: org.plan } },
           { defaultEnabled: true },
         ],
       },
@@ -229,9 +229,9 @@ export class OrganizationsService {
     }
     
     // Check if feature is available for this plan
-    // if (!feature.availableInPlans.includes(org.plan) && !feature.defaultEnabled) {
-    //   throw new Error(`Feature '${feature.name}' is not available in ${org.plan} plan. Upgrade to access this feature.`);
-    // }
+    if (!feature.availableInPlans.includes(org.plan) && !feature.defaultEnabled) {
+      throw new Error(`Feature '${feature.name}' is not available in ${org.plan} plan. Upgrade to access this feature.`);
+    }
     
     // Enable or update feature
     await prisma.organizationFeature.upsert({

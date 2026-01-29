@@ -8,7 +8,7 @@ export class TasksService {
    * Get all tasks for current organization
    */
   async getTasks(request: FastifyRequest, filters?: any) {
-    const { clientId, completed, search } = filters || {};
+    const { clientId, search } = filters || {};
     
     // Build where clause with tenant isolation
     const where = withTenantIsolation(request, {
@@ -98,7 +98,6 @@ export class TasksService {
    * Create task
    */
   async createTask(request: FastifyRequest, data: any) {
-    const user = (request as any).user;
     const org = request.organization;
     
     if (!org) {
@@ -210,8 +209,11 @@ export class TasksService {
    * Complete task
    */
   async completeTask(request: FastifyRequest, id: string, notes?: string) {
-    const user = (request as any).user;
-    
+    const user = request.user;
+    if (!user) {
+      throw new Error('User required');
+    }
+
     const task = await prisma.task.findUnique({
       where: withTenantIsolation(request, { id }),
     });

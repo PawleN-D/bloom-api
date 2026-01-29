@@ -8,7 +8,10 @@ export async function notesRoutes(server: FastifyInstance) {
   const notesService = new NotesService();
   
   // GET /api/notes
-  server.get('/api/notes', {
+  server.get('/', {
+    schema: {
+      tags: ['Notes'],
+    },
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -24,7 +27,10 @@ export async function notesRoutes(server: FastifyInstance) {
   });
   
   // GET /api/notes/:id
-  server.get('/api/notes/:id', {
+  server.get('/:id', {
+    schema: {
+      tags: ['Notes'],
+    },
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -42,7 +48,10 @@ export async function notesRoutes(server: FastifyInstance) {
   });
   
   // POST /api/notes
-  server.post('/api/notes', {
+  server.post('/', {
+    schema: {
+      tags: ['Notes'],
+    },
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -58,7 +67,10 @@ export async function notesRoutes(server: FastifyInstance) {
   });
   
   // PUT /api/notes/:id
-  server.put('/api/notes/:id', {
+  server.put('/:id', {
+    schema: {
+      tags: ['Notes'],
+    },
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -76,7 +88,10 @@ export async function notesRoutes(server: FastifyInstance) {
   });
   
   // DELETE /api/notes/:id
-  server.delete('/api/notes/:id', {
+  server.delete('/:id', {
+    schema: {
+      tags: ['Notes'],
+    },
     preHandler: [
       authMiddleware,
       tenantContext,

@@ -8,7 +8,10 @@ export async function clientsRoutes(server: FastifyInstance) {
   const clientsService = new ClientsService();
   
   // GET /api/clients
-  server.get('/api/clients', {
+  server.get('/', {
+    schema: {
+      tags: ['Clients'],
+    },
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -24,7 +27,10 @@ export async function clientsRoutes(server: FastifyInstance) {
   });
   
   // GET /api/clients/:id
-  server.get('/api/clients/:id', {
+  server.get('/:id', {
+    schema: {
+      tags: ['Clients'],
+    },
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -42,7 +48,10 @@ export async function clientsRoutes(server: FastifyInstance) {
   });
   
   // POST /api/clients
-  server.post('/api/clients', {
+  server.post('/', {
+    schema: {
+      tags: ['Clients'],
+    },
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -58,7 +67,10 @@ export async function clientsRoutes(server: FastifyInstance) {
   });
   
   // PUT /api/clients/:id
-  server.put('/api/clients/:id', {
+  server.put('/:id', {
+    schema: {
+      tags: ['Clients'],
+    },
     preHandler: [
       authMiddleware,
       tenantContext,
@@ -76,7 +88,10 @@ export async function clientsRoutes(server: FastifyInstance) {
   });
   
   // DELETE /api/clients/:id
-  server.delete('/api/clients/:id', {
+  server.delete('/:id', {
+    schema: {
+      tags: ['Clients'],
+    },
     preHandler: [
       authMiddleware,
       tenantContext,

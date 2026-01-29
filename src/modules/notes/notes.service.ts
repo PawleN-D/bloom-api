@@ -8,13 +8,13 @@ export class NotesService {
    * Get all notes for current organization
    */
   async getNotes(request: FastifyRequest, filters?: any) {
-    const user = (request as any).user;
+    const user = request.user;
     const { clientId, authorId, search } = filters || {};
     
     // Build where clause with tenant isolation
     const where = withTenantIsolation(request, {
       clientId: clientId || undefined,
-      authorId: authorId || (user.role === 'WORKER' ? user.id : undefined),
+      authorId: authorId || (user?.role === 'WORKER' ? user.id : undefined),
     });
     
     // Add search filter
@@ -85,9 +85,13 @@ export class NotesService {
    * Create note
    */
   async createNote(request: FastifyRequest, data: any) {
-    const user = (request as any).user;
+    const user = request.user;
     const org = request.organization;
     
+    if (!user) {
+      throw new Error('User required');
+    }
+
     if (!org) {
       throw new Error('Organization required');
     }
@@ -106,7 +110,7 @@ export class NotesService {
     }
     
     // Workers can only create notes for assigned clients
-    if (user.role === 'WORKER') {
+    if (user?.role === 'WORKER') {
       const assignment = await prisma.assignment.findUnique({
         where: {
           userId_clientId: {
@@ -158,7 +162,7 @@ export class NotesService {
    * Update note
    */
   async updateNote(request: FastifyRequest, id: string, data: any) {
-    const user = (request as any).user;
+    const user = request.user;
     
     const existing = await prisma.note.findUnique({
       where: withTenantIsolation(request, { id }),
@@ -169,7 +173,7 @@ export class NotesService {
     }
     
     // Workers can only edit their own notes
-    if (user.role === 'WORKER' && existing.authorId !== user.id) {
+    if (user?.role === 'WORKER' && existing.authorId !== user.id) {
       throw new Error('You can only edit your own notes');
     }
     
@@ -197,7 +201,7 @@ export class NotesService {
    * Delete note
    */
   async deleteNote(request: FastifyRequest, id: string) {
-    const user = (request as any).user;
+    const user = request.user;
     
     const existing = await prisma.note.findUnique({
       where: withTenantIsolation(request, { id }),
@@ -208,7 +212,7 @@ export class NotesService {
     }
     
     // Workers can only delete their own notes
-    if (user.role === 'WORKER' && existing.authorId !== user.id) {
+    if (user?.role === 'WORKER' && existing.authorId !== user.id) {
       throw new Error('You can only delete your own notes');
     }
     
