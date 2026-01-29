@@ -1,29 +1,110 @@
-// src/modules/notes/notes.routes.ts
-import { FastifyInstance } from 'fastify'
-import * as notesController from './notes.controller'
-import { authMiddleware } from '../../shared/middleware/auth.middleware'
+import { FastifyInstance } from 'fastify';
+import { authMiddleware } from '../../shared/middleware/auth.middleware';
+import { tenantContext } from '../../shared/middleware/tenant-context';
+import { authorize, Permission } from '../../shared/middleware/authorize';
+import { NotesService } from './notes.service';
 
 export async function notesRoutes(server: FastifyInstance) {
-  server.addHook('preHandler', authMiddleware)
-
-  // List notes for worker
-  server.get('/', notesController.listNotes)
-
-  // Create note
+  const notesService = new NotesService();
+  
+  // GET /api/notes
+  server.get('/', {
+    schema: {
+      tags: ['Notes'],
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.READ_NOTE)
+    ]
+  }, async (request, reply) => {
+    try {
+      const notes = await notesService.getNotes(request, request.query);
+      return reply.send({ data: notes });
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
+    }
+  });
+  
+  // GET /api/notes/:id
+  server.get('/:id', {
+    schema: {
+      tags: ['Notes'],
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.READ_NOTE)
+    ]
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params as any;
+      const note = await notesService.getNote(request, id);
+      return reply.send({ data: note });
+    } catch (error: any) {
+      const status = error.message === 'Note not found' ? 404 : 500;
+      return reply.status(status).send({ error: error.message });
+    }
+  });
+  
+  // POST /api/notes
   server.post('/', {
     schema: {
-      body: {
-        type: 'object',
-        required: ['content', 'clientId'],
-        properties: {
-          content: { type: 'string', minLength: 1 },
-          category: { 
-            type: 'string',
-            enum: ['PROGRESS', 'OBSERVATION', 'INCIDENT', 'COMMUNICATION', 'GENERAL']
-          },
-          clientId: { type: 'string' }
-        }
-      }
+      tags: ['Notes'],
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.CREATE_NOTE)
+    ]
+  }, async (request, reply) => {
+    try {
+      const note = await notesService.createNote(request, request.body);
+      return reply.status(201).send({ data: note });
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
     }
-  }, notesController.createNote)
+  });
+  
+  // PUT /api/notes/:id
+  server.put('/:id', {
+    schema: {
+      tags: ['Notes'],
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.UPDATE_NOTE)
+    ]
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params as any;
+      const note = await notesService.updateNote(request, id, request.body);
+      return reply.send({ data: note });
+    } catch (error: any) {
+      const status = error.message === 'Note not found' ? 404 : 500;
+      return reply.status(status).send({ error: error.message });
+    }
+  });
+  
+  // DELETE /api/notes/:id
+  server.delete('/:id', {
+    schema: {
+      tags: ['Notes'],
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.DELETE_NOTE)
+    ]
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params as any;
+      const result = await notesService.deleteNote(request, id);
+      return reply.send(result);
+    } catch (error: any) {
+      const status = error.message === 'Note not found' ? 404 : 500;
+      return reply.status(status).send({ error: error.message });
+    }
+  });
 }

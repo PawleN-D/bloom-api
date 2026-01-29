@@ -21,6 +21,9 @@ afterEach(async () => {
   await prisma.assignment.deleteMany({})
   await prisma.client.deleteMany({})
   await prisma.user.deleteMany({})
+  await prisma.organizationFeature.deleteMany({})
+  await prisma.feature.deleteMany({})
+  await prisma.organization.deleteMany({})
 })
 
 export { prisma }

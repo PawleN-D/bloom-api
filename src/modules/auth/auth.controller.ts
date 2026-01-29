@@ -10,6 +10,7 @@ interface RegisterBody {
   firstName: string
   lastName: string
   role: UserRole
+  organizationId?: string
 }
 
 interface LoginBody {
@@ -22,14 +23,15 @@ export async function register(
   reply: FastifyReply
 ) {
   try {
-    const { email, password, firstName, lastName, role } = request.body
+    const { email, password, firstName, lastName, role, organizationId } = request.body
 
     const user = await authService.registerUser({
       email,
       password,
       firstName,
       lastName,
-      role
+      role,
+      organizationId,
     })
 
     // Don't return password
@@ -92,7 +94,7 @@ export async function getMe(
 ) {
   try {
     // We'll get user from request.user (set by auth middleware)
-    const user = (request as any).user
+    const user = request.user
 
     return reply.status(200).send({
       success: true,

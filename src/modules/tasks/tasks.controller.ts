@@ -30,8 +30,7 @@ export async function listTasks(
   reply: FastifyReply
 ) {
   try {
-    const user = (request as any).user
-    const tasks = await tasksService.getTasksForWorker(user.userId)
+    const tasks = await tasksService.getTasks(request, request.query)
 
     return reply.status(200).send({
       success: true,
@@ -53,7 +52,7 @@ export async function createTask(
   try {
     const data = request.body as CreateTaskBody
 
-    const task = await tasksService.createTask({
+    const task = await tasksService.createTask(request, {
       ...data,
       dueDate: data.dueDate ? new Date(data.dueDate) : undefined
     })
@@ -78,9 +77,7 @@ export async function completeTask(
   try {
     const { id } = request.params as { id: string }
     const { notes } = request.body as CompleteTaskBody
-    const user = (request as any).user
-
-    const completion = await tasksService.completeTask(id, user.userId, notes)
+    const completion = await tasksService.completeTask(request, id, notes)
 
     return reply.status(201).send({
       success: true,
@@ -102,7 +99,7 @@ export async function getClientTasks(
 ) {
   try {
     const { id } = request.params as { id: string }
-    const tasks = await tasksService.getTasksForClient(id)
+    const tasks = await tasksService.getTasks(request, { clientId: id })
 
     return reply.status(200).send({
       success: true,

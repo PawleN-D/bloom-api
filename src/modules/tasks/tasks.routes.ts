@@ -1,21 +1,78 @@
-// src/modules/tasks/tasks.routes.ts
-import { FastifyInstance } from 'fastify'
-import * as tasksController from './tasks.controller'
-import { authMiddleware } from '../../shared/middleware/auth.middleware'
-import { adminMiddleware } from '../../shared/middleware/admin.middleware'
+import { FastifyInstance } from 'fastify';
+import { authMiddleware } from '../../shared/middleware/auth.middleware';
+import { tenantContext } from '../../shared/middleware/tenant-context';
+import { authorize, Permission } from '../../shared/middleware/authorize';
+import { TasksService } from './tasks.service';
 
 export async function tasksRoutes(server: FastifyInstance) {
-  // All routes require authentication
-  server.addHook('preHandler', authMiddleware)
+  const tasksService = new TasksService();
 
-  // List tasks for logged-in worker
-  server.get('/', tasksController.listTasks)
+  server.get('/', {
+    schema: {
+      tags: ['Tasks'],
+      summary: 'List tasks',
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            data: { type: 'array', items: { type: 'object' } },
+          },
+        },
+      },
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.READ_TASK),
+    ],
+  }, async (request) => {
+    const tasks = await tasksService.getTasks(request, request.query);
+    return { data: tasks };
+  });
 
-  // Create task (ADMIN ONLY)
+  server.get('/:id', {
+    schema: {
+      tags: ['Tasks'],
+      summary: 'Get task by ID',
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+        required: ['id'],
+      },
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.READ_TASK),
+    ],
+  }, async (request: any) => {
+    return {
+      data: await tasksService.getTask(request, request.params.id),
+    };
+  });
+
   server.post('/', {
-    preHandler: [adminMiddleware]
-  }, tasksController.createTask)
-
-  // Complete task (WORKERS can do this)
-  server.post('/:id/complete', tasksController.completeTask)
+    schema: {
+      tags: ['Tasks'],
+      summary: 'Create task',
+      body: {
+        type: 'object',
+        required: ['title'],
+        properties: {
+          title: { type: 'string' },
+          description: { type: 'string' },
+        },
+      },
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.CREATE_TASK),
+    ],
+  }, async (request: any, reply) => {
+    const task = await tasksService.createTask(request, request.body);
+    return reply.code(201).send({ data: task });
+  });
 }

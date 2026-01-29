@@ -1,9 +1,11 @@
 import jwt from 'jsonwebtoken'
+import { UserRole } from '@prisma/client'
 
 export interface JWTPayload {
   userId: string
   email: string
-  role: string
+  role: UserRole
+  organizationId?: string | null
 }
 
 export class JWTService {

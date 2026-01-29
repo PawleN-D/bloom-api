@@ -32,7 +32,12 @@ export async function authMiddleware(
     const decoded = jwtService.verifyToken(token);
     
     // Attach user to request
-    (request as any).user = decoded
+    request.user = {
+      id: decoded.userId,
+      email: decoded.email,
+      role: decoded.role,
+      organizationId: decoded.organizationId ?? null,
+    }
 
   } catch (error) {
     return reply.status(401).send({

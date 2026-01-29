@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,9 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  WORKER
-  ADMIN
+// ============================================================================
+// ENUMS (Existing + New)
+// ============================================================================
+
+enum NoteCategory {
+  PROGRESS
+  OBSERVATION
+  INCIDENT
+  COMMUNICATION
+  GENERAL
 }
 
 enum TaskCategory {
@@ -33,157 +37,263 @@ enum TaskPriority {
   URGENT
 }
 
-enum NoteCategory {
-  PROGRESS
-  OBSERVATION
-  INCIDENT
-  COMMUNICATION
-  GENERAL
+enum UserRole {
+  WORKER
+  ADMIN
+  MANAGER
+  ORG_OWNER
+  SUPER_ADMIN
 }
 
+enum SubscriptionPlan {
+  FREE
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum FeatureCategory {
+  CORE
+  COMPLIANCE
+  AI
+  ADVANCED
+  INTEGRATIONS
+  ENTERPRISE
+}
+
+// ============================================================================
+// NEW MODELS (Multi-Tenancy)
+// ============================================================================
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  subdomain   String?  @unique
+  
+  logo         String?
+  primaryColor String?  @default("#0F766E")
+  
+  plan         SubscriptionPlan @default(STARTER)
+  billingEmail String?
+  maxUsers     Int      @default(10)
+  maxClients   Int      @default(50)
+  
+  active      Boolean  @default(true)
+  suspended   Boolean  @default(false)
+  trialEndsAt DateTime?
+  
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  users       User[]
+  clients     Client[]
+  tasks       Task[]
+  notes       Note[]
+  organizationFeatures OrganizationFeature[]
+  
+  @@index([slug])
+  @@index([active])
+}
+
+model Feature {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  category    FeatureCategory
+  
+  availableInPlans SubscriptionPlan[]
+  betaFeature      Boolean  @default(false)
+  comingSoon       Boolean  @default(false)
+  defaultEnabled   Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  organizationFeatures OrganizationFeature[]
+  
+  @@index([key])
+  @@index([category])
+}
+
+model OrganizationFeature {
+  id             String   @id @default(cuid())
+  organizationId String
+  featureId      String
+  enabled        Boolean
+  config         Json?
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  feature        Feature      @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  
+  @@unique([organizationId, featureId])
+  @@index([organizationId])
+  @@index([featureId])
+}
+
+// ============================================================================
+// EXISTING MODELS (Updated with organizationId)
+// ============================================================================
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  firstName String
-  lastName  String
-  role      UserRole @default(WORKER)
-  isActive  Boolean  @default(true)
+  id             String   @id
+  email          String   @unique
+  password       String
+  firstName      String
+  lastName       String
+  role           UserRole @default(WORKER)
+  
+  // Multi-tenancy field
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
   
   assignments      Assignment[]
-  taskCompletions  TaskCompletion[]
   notes            Note[]
+  taskCompletions  TaskCompletion[]
   
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
   @@index([email])
+  @@index([organizationId])
   @@map("users")
 }
 
 model Client {
-  id        String   @id @default(cuid())
-  firstName String
-  lastName  String
-  dateOfBirth DateTime?
-  address   String?
-  phone     String?
-  email     String?
+  id                       String    @id
   
-  conditions              String? @db.Text
-  allergies               String? @db.Text
-  carePlan                String? @db.Text
-  emergencyContactName    String?
-  emergencyContactPhone   String?
+  // Multi-tenancy field
+  organizationId           String
+  organization             Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  firstName                String
+  lastName                 String
+  dateOfBirth              DateTime?
+  address                  String?
+  phone                    String?
+  email                    String?
+  conditions               String?
+  allergies                String?
+  carePlan                 String?
+  emergencyContactName     String?
+  emergencyContactPhone    String?
   emergencyContactRelation String?
+  isActive                 Boolean   @default(true)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime
   
-  isActive  Boolean  @default(true)
+  assignments              Assignment[]
+  files                    File[]
+  notes                    Note[]
+  tasks                    Task[]
   
-  assignments Assignment[]
-  tasks       Task[]
-  notes       Note[]
-  files       File[]
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
   @@index([lastName])
+  @@index([organizationId])
   @@map("clients")
 }
 
 model Assignment {
-  id       String  @id @default(cuid())
-  isActive Boolean @default(true)
-  
-  userId   String
-  user     User   @relation(fields: [userId], references: [id])
-  
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id])
-  
+  id        String   @id
+  userId    String
+  clientId  String
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  updatedAt DateTime
+  
+  client    Client   @relation(fields: [clientId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  
   @@unique([userId, clientId])
-  @@index([userId])
   @@index([clientId])
+  @@index([userId])
   @@map("assignments")
 }
 
 model Task {
-  id          String       @id @default(cuid())
-  title       String
-  description String?      @db.Text
-  category    TaskCategory @default(GENERAL)
-  priority    TaskPriority @default(NORMAL)
-  isRecurring Boolean      @default(false)
-  dueDate     DateTime?
+  id               String       @id
   
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id])
+  // Multi-tenancy field
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   
-  completions TaskCompletion[]
+  title            String
+  description      String?
+  category         TaskCategory @default(GENERAL)
+  priority         TaskPriority @default(NORMAL)
+  clientId         String
+  isRecurring      Boolean      @default(false)
+  dueDate          DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime
   
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  taskCompletions  TaskCompletion[]
+  client           Client       @relation(fields: [clientId], references: [id])
+  
   @@index([clientId])
   @@index([dueDate])
+  @@index([organizationId])
   @@map("tasks")
 }
 
 model TaskCompletion {
-  id          String   @id @default(cuid())
-  notes       String?  @db.Text
-  completedAt DateTime @default(now())
-  
-  taskId String
-  task   Task   @relation(fields: [taskId], references: [id])
-  
+  id          String   @id
+  taskId      String
   completedBy String
-  user        User   @relation(fields: [completedBy], references: [id])
+  completedAt DateTime @default(now())
+  notes       String?
+  createdAt   DateTime @default(now())
   
-  createdAt DateTime @default(now())
-
-  @@index([taskId])
+  user        User     @relation(fields: [completedBy], references: [id])
+  task        Task     @relation(fields: [taskId], references: [id])
+  
   @@index([completedBy])
+  @@index([taskId])
   @@map("task_completions")
 }
 
 model Note {
-  id        String       @id @default(cuid())
-  content   String       @db.Text
-  category  NoteCategory @default(GENERAL)
+  id        String       @id
   
+  // Multi-tenancy field
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  content   String
+  category  NoteCategory @default(GENERAL)
   clientId  String
+  authorId  String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime
+  
+  user      User         @relation(fields: [authorId], references: [id])
   client    Client       @relation(fields: [clientId], references: [id])
   
-  authorId  String
-  author    User         @relation(fields: [authorId], references: [id])
-  
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-
-  @@index([clientId])
   @@index([authorId])
+  @@index([clientId])
   @@index([createdAt])
+  @@index([organizationId])
   @@map("notes")
 }
 
 model File {
-  id           String  @id @default(cuid())
+  id           String   @id
   filename     String
   originalName String
   mimeType     String
   size         Int
   url          String
+  clientId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
   
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id])
+  client       Client   @relation(fields: [clientId], references: [id])
   
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
   @@index([clientId])
   @@map("files")
 }

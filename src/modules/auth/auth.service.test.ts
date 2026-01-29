@@ -2,6 +2,7 @@
 import { AuthService } from './auth.service'
 import { prisma } from '../../../tests/setup'
 import { UserRole } from '@prisma/client'
+import { createOrganization } from '../../../tests/helpers'
 
 describe('AuthService', () => {
   let authService: AuthService
@@ -13,12 +14,14 @@ describe('AuthService', () => {
   describe('registerUser', () => {
     it('should create a new user with hashed password', async () => {
       // Arrange
+      const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'worker@test.com',
         password: 'SecurePass123!',
         firstName: 'John',
         lastName: 'Doe',
-        role: UserRole.WORKER
+        role: UserRole.WORKER,
+        organizationId: org.id,
       }
 
       // Act
@@ -40,12 +43,14 @@ describe('AuthService', () => {
 
     it('should not allow duplicate emails', async () => {
       // Arrange
+      const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'duplicate@test.com',
         password: 'SecurePass123!',
         firstName: 'Jane',
         lastName: 'Doe',
-        role: UserRole.WORKER
+        role: UserRole.WORKER,
+        organizationId: org.id,
       }
 
       // Create first user
@@ -59,12 +64,14 @@ describe('AuthService', () => {
 
     it('should create users with different roles', async () => {
       // Arrange
+      const org = await createOrganization({ name: 'Auth Org' })
       const workerData = {
         email: 'unique-worker@test.com',
         password: 'SecurePass123!',
         firstName: 'Worker',
         lastName: 'One',
-        role: UserRole.WORKER
+        role: UserRole.WORKER,
+        organizationId: org.id,
       }
 
       const adminData = {
@@ -72,7 +79,8 @@ describe('AuthService', () => {
         password: 'SecurePass123!',
         firstName: 'Admin',
         lastName: 'One',
-        role: UserRole.ADMIN
+        role: UserRole.ADMIN,
+        organizationId: org.id,
       }
 
       // Act
@@ -86,12 +94,14 @@ describe('AuthService', () => {
 
     it('should hash different passwords differently', async () => {
       // Arrange
+      const org = await createOrganization({ name: 'Auth Org' })
       const user1Data = {
         email: 'user1@test.com',
         password: 'Password1!',
         firstName: 'User',
         lastName: 'One',
-        role: UserRole.WORKER
+        role: UserRole.WORKER,
+        organizationId: org.id,
       }
 
       const user2Data = {
@@ -99,7 +109,8 @@ describe('AuthService', () => {
         password: 'Password2!',
         firstName: 'User',
         lastName: 'Two',
-        role: UserRole.WORKER
+        role: UserRole.WORKER,
+        organizationId: org.id,
       }
 
       // Act
@@ -114,12 +125,14 @@ describe('AuthService', () => {
   describe('login', () => {
     it('should login user with valid credentials and return token', async () => {
       // Arrange - Create a user first
+      const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'login@test.com',
         password: 'SecurePass123!',
         firstName: 'Login',
         lastName: 'User',
-        role: UserRole.WORKER
+        role: UserRole.WORKER,
+        organizationId: org.id,
       }
       await authService.registerUser(userData)
 
@@ -138,12 +151,14 @@ describe('AuthService', () => {
 
     it('should reject invalid password', async () => {
       // Arrange
+      const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'test@test.com',
         password: 'CorrectPassword',
         firstName: 'Test',
         lastName: 'User',
-        role: UserRole.WORKER
+        role: UserRole.WORKER,
+        organizationId: org.id,
       }
       await authService.registerUser(userData)
 
@@ -162,12 +177,14 @@ describe('AuthService', () => {
 
     it('should reject inactive user', async () => {
       // Arrange - Create user then deactivate
+      const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'inactive@test.com',
         password: 'Password123!',
         firstName: 'Inactive',
         lastName: 'User',
-        role: UserRole.WORKER
+        role: UserRole.WORKER,
+        organizationId: org.id,
       }
       const user = await authService.registerUser(userData)
       
@@ -185,12 +202,14 @@ describe('AuthService', () => {
 
     it('should generate valid JWT token on login', async () => {
       // Arrange
+      const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'jwt@test.com',
         password: 'SecurePass123!',
         firstName: 'JWT',
         lastName: 'User',
-        role: UserRole.ADMIN
+        role: UserRole.ADMIN,
+        organizationId: org.id,
       }
       await authService.registerUser(userData)
 
@@ -207,12 +226,14 @@ describe('AuthService', () => {
   describe('verifyToken', () => {
     it('should verify valid token and return user info', async () => {
       // Arrange - Create user and login
+      const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'verify@test.com',
         password: 'SecurePass123!',
         firstName: 'Verify',
         lastName: 'User',
-        role: UserRole.WORKER
+        role: UserRole.WORKER,
+        organizationId: org.id,
       }
       await authService.registerUser(userData)
       const { token } = await authService.login(userData.email, userData.password)
@@ -239,12 +260,14 @@ describe('AuthService', () => {
 
     it('should reject token for inactive user', async () => {
       // Arrange - Create user, login, then deactivate
+      const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'deactivate@test.com',
         password: 'SecurePass123!',
         firstName: 'Deactivate',
         lastName: 'User',
-        role: UserRole.WORKER
+        role: UserRole.WORKER,
+        organizationId: org.id,
       }
       const user = await authService.registerUser(userData)
       const { token } = await authService.login(userData.email, userData.password)
