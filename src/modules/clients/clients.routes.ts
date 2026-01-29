@@ -1,39 +1,95 @@
-// src/modules/clients/clients.routes.ts
-import { FastifyInstance } from 'fastify'
-import * as clientsController from './clients.controller'
-import * as tasksController from '../tasks/tasks.controller'
-import * as notesController from '../notes/notes.controller'
-import { authMiddleware } from '../../shared/middleware/auth.middleware'
-import { adminMiddleware } from '../../shared/middleware/admin.middleware'
+import { FastifyInstance } from 'fastify';
+import { authMiddleware } from '../../shared/middleware/auth.middleware';
+import { tenantContext } from '../../shared/middleware/tenant-context';
+import { authorize, Permission } from '../../shared/middleware/authorize';
+import { ClientsService } from './clients.service';
 
 export async function clientsRoutes(server: FastifyInstance) {
-  // All routes require authentication
-  server.addHook('preHandler', authMiddleware)
-
-  // List clients for logged-in worker
-  server.get('/', clientsController.listClients)
-
-  // Get single client
-  server.get('/:id', clientsController.getClient)
-
-  // Get tasks for client
-  server.get('/:id/tasks', tasksController.getClientTasks)
-
-  // Get notes for client
-  server.get('/:id/notes', notesController.getClientNotes)
-
-  // Create client (ADMIN ONLY)
-  server.post('/', {
-    preHandler: [adminMiddleware]
-  }, clientsController.createClient)
-
-  // Update client (ADMIN ONLY)
-  server.patch('/:id', {
-    preHandler: [adminMiddleware]
-  }, clientsController.updateClient)
-
-  // Delete client (ADMIN ONLY)
-  server.delete('/:id', {
-    preHandler: [adminMiddleware]
-  }, clientsController.deleteClient)
+  const clientsService = new ClientsService();
+  
+  // GET /api/clients
+  server.get('/api/clients', {
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.READ_CLIENT)
+    ]
+  }, async (request, reply) => {
+    try {
+      const clients = await clientsService.getClients(request, request.query);
+      return reply.send({ data: clients });
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
+    }
+  });
+  
+  // GET /api/clients/:id
+  server.get('/api/clients/:id', {
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.READ_CLIENT)
+    ]
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params as any;
+      const client = await clientsService.getClient(request, id);
+      return reply.send({ data: client });
+    } catch (error: any) {
+      const status = error.message === 'Client not found' ? 404 : 500;
+      return reply.status(status).send({ error: error.message });
+    }
+  });
+  
+  // POST /api/clients
+  server.post('/api/clients', {
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.CREATE_CLIENT)
+    ]
+  }, async (request, reply) => {
+    try {
+      const client = await clientsService.createClient(request, request.body);
+      return reply.status(201).send({ data: client });
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
+    }
+  });
+  
+  // PUT /api/clients/:id
+  server.put('/api/clients/:id', {
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.UPDATE_CLIENT)
+    ]
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params as any;
+      const client = await clientsService.updateClient(request, id, request.body);
+      return reply.send({ data: client });
+    } catch (error: any) {
+      const status = error.message === 'Client not found' ? 404 : 500;
+      return reply.status(status).send({ error: error.message });
+    }
+  });
+  
+  // DELETE /api/clients/:id
+  server.delete('/api/clients/:id', {
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.DELETE_CLIENT)
+    ]
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params as any;
+      const result = await clientsService.deleteClient(request, id);
+      return reply.send(result);
+    } catch (error: any) {
+      const status = error.message === 'Client not found' ? 404 : 500;
+      return reply.status(status).send({ error: error.message });
+    }
+  });
 }

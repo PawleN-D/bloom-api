@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import { config } from "./config/env";
+import { setupSwagger } from "./config/swagger";
 
 // Create Fastify instance
 const server = Fastify({
@@ -67,6 +68,7 @@ async function start() {
   try {
     await registerPlugins();
     await registerRoutes();
+    await setupSwagger(server);
 
     await server.listen({
       port: config.port,
@@ -82,6 +84,7 @@ async function start() {
     process.exit(1);
   }
 }
+
 
 // Handle graceful shutdown
 const signals = ["SIGINT", "SIGTERM"];
