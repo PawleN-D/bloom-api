@@ -15,7 +15,7 @@ export async function tasksRoutes(server: FastifyInstance) {
         200: {
           type: 'object',
           properties: {
-            data: { type: 'array', items: { type: 'object' } },
+            data: { type: 'array', items: { type: 'object', additionalProperties: true } },
           },
         },
       },
@@ -74,5 +74,85 @@ export async function tasksRoutes(server: FastifyInstance) {
   }, async (request: any, reply) => {
     const task = await tasksService.createTask(request, request.body);
     return reply.code(201).send({ data: task });
+  });
+
+  server.put('/:id', {
+    schema: {
+      tags: ['Tasks'],
+      summary: 'Update task',
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+        required: ['id'],
+      },
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.UPDATE_TASK),
+    ],
+  }, async (request: any, reply) => {
+    const task = await tasksService.updateTask(
+      request,
+      request.params.id,
+      request.body
+    );
+    return reply.send({ data: task });
+  });
+
+  server.delete('/:id', {
+    schema: {
+      tags: ['Tasks'],
+      summary: 'Delete task',
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+        required: ['id'],
+      },
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.DELETE_TASK),
+    ],
+  }, async (request: any, reply) => {
+    const result = await tasksService.deleteTask(request, request.params.id);
+    return reply.send(result);
+  });
+
+  server.post('/:id/complete', {
+    schema: {
+      tags: ['Tasks'],
+      summary: 'Complete task',
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+        required: ['id'],
+      },
+      body: {
+        type: 'object',
+        properties: {
+          notes: { type: 'string' },
+        },
+      },
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.UPDATE_TASK),
+    ],
+  }, async (request: any, reply) => {
+    const result = await tasksService.completeTask(
+      request,
+      request.params.id,
+      request.body?.notes
+    );
+    return reply.send(result);
   });
 }

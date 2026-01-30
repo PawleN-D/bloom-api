@@ -122,6 +122,20 @@ export async function adminRoutes(server: FastifyInstance) {
       return reply.status(500).send({ error: error.message });
     }
   });
+
+  // GET /api/admin/organizations/:id/features - Org features
+  server.get('/organizations/:id/features', {
+    preHandler: [authMiddleware, requireSuperAdmin]
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params as any;
+      const result = await adminService.getOrganizationFeatures(id);
+      return reply.send({ data: result });
+    } catch (error: any) {
+      const status = error.message === 'Organization not found' ? 404 : 500;
+      return reply.status(status).send({ error: error.message });
+    }
+  });
   
   // POST /api/admin/features - Create new feature
   server.post('/features', {

@@ -35,10 +35,8 @@ export async function tenantContext(
   if (user?.role === 'SUPER_ADMIN') {
     const orgId = request.headers['x-organization-id'];
     if (!orgId || Array.isArray(orgId)) {
-      return reply.status(400).send({
-        error: 'Organization Required',
-        message: 'Provide x-organization-id header for tenant-scoped endpoints',
-      });
+      // Allow super admin to bypass tenant scoping when no org header is provided.
+      return;
     }
 
     const org = await prisma.organization.findUnique({
@@ -86,6 +84,11 @@ export function withTenantIsolation<T extends Record<string, any>>(
   where: T = {} as T
 ): T {
   if (!request.organization) {
+    if (request.user?.role === 'SUPER_ADMIN') {
+      return {
+        ...where,
+      } as T;
+    }
     throw new Error('Organization context required');
   }
   
