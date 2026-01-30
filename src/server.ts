@@ -75,8 +75,6 @@ async function registerRoutes() {
   const { adminRoutes } = await import("./modules/admin/admin.routes");
   await server.register(adminRoutes, { prefix: "/api/admin" });
 
-  const { schedulingRoutes } = await import("./modules/scheduling/scheduling.routes");
-  await server.register(schedulingRoutes, { prefix: "/api/scheduling" });
 }
 
 // Start server
