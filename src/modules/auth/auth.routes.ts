@@ -3,6 +3,19 @@ import * as authController from './auth.controller'
 import { authMiddleware } from '../../shared/middleware/auth.middleware'
 
 export async function authRoutes(server: FastifyInstance) {
+  const logAuthMeRequest = async (request: FastifyRequest) => {
+    if (process.env.NODE_ENV === 'development') {
+      request.log.info(
+        {
+          origin: request.headers.origin,
+          host: request.headers.host,
+          hasAuthHeader: Boolean(request.headers.authorization),
+        },
+        'auth/me request'
+      )
+    }
+  }
+
   // Register user
   server.post('/register', {
     schema: {
@@ -42,6 +55,6 @@ export async function authRoutes(server: FastifyInstance) {
     schema: {
       tags: ['Auth'],
     },
-    preHandler: authMiddleware
+    preHandler: [logAuthMeRequest, authMiddleware]
   }, authController.getMe)
 }

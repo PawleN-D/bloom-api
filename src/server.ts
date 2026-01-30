@@ -24,10 +24,13 @@ const server = Fastify({
 
 async function registerPlugins() {
   await server.register(cors, {
-    origin: [
-      config.frontendUrl,                // likely http://localhost:3000
-      "http://192.168.208.1:3000"        // your current network origin
-    ],
+    origin:
+      config.nodeEnv === "development"
+        ? true
+        : [
+            config.frontendUrl, // likely http://localhost:3000
+            "http://192.168.208.1:3000", // your current network origin
+          ],
     credentials: true,
   });
 
@@ -71,6 +74,9 @@ async function registerRoutes() {
 
   const { adminRoutes } = await import("./modules/admin/admin.routes");
   await server.register(adminRoutes, { prefix: "/api/admin" });
+
+  const { schedulingRoutes } = await import("./modules/scheduling/scheduling.routes");
+  await server.register(schedulingRoutes, { prefix: "/api/scheduling" });
 }
 
 // Start server

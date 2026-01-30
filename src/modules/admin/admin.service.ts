@@ -302,4 +302,29 @@ export class AdminService {
     
     return feature;
   }
+
+  /**
+   * Get organization with enabled features
+   */
+  async getOrganizationFeatures(orgId: string) {
+    const organization = await prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+
+    if (!organization) {
+      throw new Error('Organization not found');
+    }
+
+    const features = await prisma.organizationFeature.findMany({
+      where: { organizationId: orgId },
+      include: {
+        feature: true,
+      },
+    });
+
+    return {
+      organization,
+      features,
+    };
+  }
 }
