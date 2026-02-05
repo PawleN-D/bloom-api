@@ -6,8 +6,7 @@ import { NotesService } from './notes.service';
 
 export async function notesRoutes(server: FastifyInstance) {
   const notesService = new NotesService();
-  
-  // GET /api/notes
+
   server.get('/', {
     schema: {
       tags: ['Notes'],
@@ -25,8 +24,31 @@ export async function notesRoutes(server: FastifyInstance) {
       return reply.status(500).send({ error: error.message });
     }
   });
-  
-  // GET /api/notes/:id
+
+  server.get('/handover/significant', {
+    schema: {
+      tags: ['Notes'],
+      querystring: {
+        type: 'object',
+        properties: {
+          hours: { type: 'number', default: 12 },
+        },
+      },
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.READ_NOTE)
+    ]
+  }, async (request: any, reply) => {
+    try {
+      const handover = await notesService.getSignificantHandover(request, request.query?.hours || 12);
+      return reply.send({ data: handover });
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
+    }
+  });
+
   server.get('/:id', {
     schema: {
       tags: ['Notes'],
@@ -46,8 +68,7 @@ export async function notesRoutes(server: FastifyInstance) {
       return reply.status(status).send({ error: error.message });
     }
   });
-  
-  // POST /api/notes
+
   server.post('/', {
     schema: {
       tags: ['Notes'],
@@ -65,11 +86,20 @@ export async function notesRoutes(server: FastifyInstance) {
       return reply.status(500).send({ error: error.message });
     }
   });
-  
-  // PUT /api/notes/:id
+
   server.put('/:id', {
     schema: {
       tags: ['Notes'],
+      body: {
+        type: 'object',
+        required: ['content', 'editReason'],
+        properties: {
+          content: { type: 'string' },
+          editReason: { type: 'string' },
+          category: { type: 'string' },
+          isSignificant: { type: 'boolean' },
+        },
+      },
     },
     preHandler: [
       authMiddleware,
@@ -86,8 +116,7 @@ export async function notesRoutes(server: FastifyInstance) {
       return reply.status(status).send({ error: error.message });
     }
   });
-  
-  // DELETE /api/notes/:id
+
   server.delete('/:id', {
     schema: {
       tags: ['Notes'],

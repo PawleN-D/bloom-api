@@ -18,6 +18,10 @@ interface CreateTaskBody {
 
 interface CompleteTaskBody {
   notes?: string
+  status?: 'COMPLETE' | 'INCOMPLETE' | 'REFUSED'
+  refusalReason?: string
+  signatureSvg?: string
+  initials?: string
 }
 
 /**
@@ -76,8 +80,8 @@ export async function completeTask(
 ) {
   try {
     const { id } = request.params as { id: string }
-    const { notes } = request.body as CompleteTaskBody
-    const completion = await tasksService.completeTask(request, id, notes)
+    const payload = request.body as CompleteTaskBody
+    const completion = await tasksService.completeTask(request, id, payload)
 
     return reply.status(201).send({
       success: true,

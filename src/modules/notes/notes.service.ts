@@ -3,29 +3,28 @@ import { prisma } from '../../shared/database/prisma';
 import { withTenantIsolation } from '../../shared/middleware/tenant-context';
 
 export class NotesService {
-  
   /**
-   * Get all notes for current organization
+   * Get all latest notes for current organization
    */
   async getNotes(request: FastifyRequest, filters?: any) {
     const user = request.user;
-    const { clientId, authorId, search } = filters || {};
-    
-    // Build where clause with tenant isolation
+    const { clientId, authorId, search, significantOnly } = filters || {};
+
     const where = withTenantIsolation(request, {
       clientId: clientId || undefined,
       authorId: authorId || (user?.role === 'WORKER' ? user.id : undefined),
+      isLatest: true,
+      isSignificant: significantOnly ? true : undefined,
     });
-    
-    // Add search filter
+
     if (search) {
       (where as any).content = {
         contains: search,
         mode: 'insensitive',
       };
     }
-    
-    const notes = await prisma.note.findMany({
+
+    return prisma.note.findMany({
       where,
       include: {
         user: {
@@ -46,13 +45,42 @@ export class NotesService {
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
-    
-    return notes;
   }
-  
-  /**
-   * Get single note
-   */
+
+  async getSignificantHandover(request: FastifyRequest, hours = 12) {
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - hours * 60 * 60 * 1000);
+
+    const where = withTenantIsolation(request, {
+      isLatest: true,
+      isSignificant: true,
+      createdAt: {
+        gte: windowStart,
+      },
+    });
+
+    return prisma.note.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async getNote(request: FastifyRequest, id: string) {
     const note = await prisma.note.findUnique({
       where: withTenantIsolation(request, { id }),
@@ -71,45 +99,42 @@ export class NotesService {
             lastName: true,
           },
         },
+        parent: {
+          select: {
+            id: true,
+            createdAt: true,
+            content: true,
+            versionNumber: true,
+          },
+        },
       },
     });
-    
+
     if (!note) {
       throw new Error('Note not found');
     }
-    
+
     return note;
   }
-  
-  /**
-   * Create note
-   */
+
   async createNote(request: FastifyRequest, data: any) {
     const user = request.user;
     const org = request.organization;
-    
-    if (!user) {
-      throw new Error('User required');
-    }
 
-    if (!org) {
-      throw new Error('Organization required');
-    }
-    
+    if (!user) throw new Error('User required');
+    if (!org) throw new Error('Organization required');
     if (!data.content || !data.clientId) {
       throw new Error('Content and client ID are required');
     }
-    
-    // Verify client belongs to organization
+
     const client = await prisma.client.findUnique({
       where: withTenantIsolation(request, { id: data.clientId }),
     });
-    
+
     if (!client) {
       throw new Error('Client not found in your organization');
     }
-    
-    // Workers can only create notes for assigned clients
+
     if (user?.role === 'WORKER') {
       const assignment = await prisma.assignment.findUnique({
         where: {
@@ -119,16 +144,16 @@ export class NotesService {
           },
         },
       });
-      
+
       if (!assignment) {
         throw new Error('You can only create notes for assigned clients');
       }
     }
-    
-    // Generate ID
+
     const noteId = require('crypto').randomBytes(16).toString('hex');
-    
-    const note = await prisma.note.create({
+    const now = new Date();
+
+    return prisma.note.create({
       data: {
         id: noteId,
         content: data.content,
@@ -136,8 +161,14 @@ export class NotesService {
         clientId: data.clientId,
         authorId: user.id,
         organizationId: org.id,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        versionNumber: 1,
+        isLatest: true,
+        parentId: null,
+        editReason: data.editReason || null,
+        isSignificant: Boolean(data.isSignificant),
+        originalCreatedAt: now,
+        createdAt: now,
+        updatedAt: now,
       },
       include: {
         user: {
@@ -154,70 +185,108 @@ export class NotesService {
         },
       },
     });
-    
-    return note;
   }
-  
+
   /**
-   * Update note
+   * Immutable edit: create new version row instead of updating original.
    */
   async updateNote(request: FastifyRequest, id: string, data: any) {
     const user = request.user;
-    
+
     const existing = await prisma.note.findUnique({
       where: withTenantIsolation(request, { id }),
     });
-    
+
     if (!existing) {
       throw new Error('Note not found');
     }
-    
-    // Workers can only edit their own notes
+
     if (user?.role === 'WORKER' && existing.authorId !== user.id) {
       throw new Error('You can only edit your own notes');
     }
-    
-    const note = await prisma.note.update({
-      where: { id },
-      data: {
-        content: data.content,
-        category: data.category,
-        updatedAt: new Date(),
-      },
-      include: {
-        user: {
-          select: {
-            firstName: true,
-            lastName: true,
+
+    if (!existing.isLatest) {
+      throw new Error('Only latest version can be edited');
+    }
+
+    if (!data.content) {
+      throw new Error('Updated content is required');
+    }
+
+    if (!data.editReason) {
+      throw new Error('Edit reason is required for immutable audit trail');
+    }
+
+    const nextVersionNumber = existing.versionNumber + 1;
+    const rootId = existing.parentId || existing.id;
+    const newNoteId = require('crypto').randomBytes(16).toString('hex');
+    const now = new Date();
+
+    const [, versionNote] = await prisma.$transaction([
+      prisma.note.update({
+        where: { id: existing.id },
+        data: {
+          isLatest: false,
+          updatedAt: now,
+        },
+      }),
+      prisma.note.create({
+        data: {
+          id: newNoteId,
+          content: data.content,
+          category: data.category || existing.category,
+          clientId: existing.clientId,
+          authorId: user?.id || existing.authorId,
+          organizationId: existing.organizationId,
+          parentId: rootId,
+          versionNumber: nextVersionNumber,
+          isLatest: true,
+          editReason: data.editReason,
+          isSignificant:
+            data.isSignificant !== undefined
+              ? Boolean(data.isSignificant)
+              : existing.isSignificant,
+          originalCreatedAt: existing.originalCreatedAt,
+          createdAt: now,
+          updatedAt: now,
+        },
+        include: {
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+          client: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
           },
         },
-      },
-    });
-    
-    return note;
+      }),
+    ]);
+
+    return versionNote;
   }
-  
-  /**
-   * Delete note
-   */
+
   async deleteNote(request: FastifyRequest, id: string) {
     const user = request.user;
-    
+
     const existing = await prisma.note.findUnique({
       where: withTenantIsolation(request, { id }),
     });
-    
+
     if (!existing) {
       throw new Error('Note not found');
     }
-    
-    // Workers can only delete their own notes
+
     if (user?.role === 'WORKER' && existing.authorId !== user.id) {
       throw new Error('You can only delete your own notes');
     }
-    
+
     await prisma.note.delete({ where: { id } });
-    
+
     return { message: 'Note deleted successfully' };
   }
 }
