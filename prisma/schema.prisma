@@ -37,6 +37,12 @@ enum TaskPriority {
   URGENT
 }
 
+enum TaskCompletionStatus {
+  COMPLETE
+  INCOMPLETE
+  REFUSED
+}
+
 enum UserRole {
   WORKER
   ADMIN
@@ -242,12 +248,19 @@ model Task {
 }
 
 model TaskCompletion {
-  id          String   @id
-  taskId      String
-  completedBy String
-  completedAt DateTime @default(now())
-  notes       String?
-  createdAt   DateTime @default(now())
+  id                   String               @id
+  taskId               String
+  completedBy          String
+  completedAt          DateTime             @default(now())
+  status               TaskCompletionStatus @default(COMPLETE)
+  refusalReason        String?
+  notes                String?
+  signatureSvg         String?
+  initials             String?
+  deviceInfo           String?
+  ipAddress            String?
+  criticalAlertFlagged Boolean              @default(false)
+  createdAt            DateTime             @default(now())
   
   user        User     @relation(fields: [completedBy], references: [id])
   task        Task     @relation(fields: [taskId], references: [id])
@@ -258,25 +271,36 @@ model TaskCompletion {
 }
 
 model Note {
-  id        String       @id
+  id                String       @id
   
   // Multi-tenancy field
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   
-  content   String
-  category  NoteCategory @default(GENERAL)
-  clientId  String
-  authorId  String
-  createdAt DateTime     @default(now())
-  updatedAt DateTime
+  content           String
+  category          NoteCategory @default(GENERAL)
+  clientId          String
+  authorId          String
+  parentId          String?
+  versionNumber     Int          @default(1)
+  isLatest          Boolean      @default(true)
+  editReason        String?
+  isSignificant     Boolean      @default(false)
+  originalCreatedAt DateTime     @default(now())
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime
   
-  user      User         @relation(fields: [authorId], references: [id])
-  client    Client       @relation(fields: [clientId], references: [id])
+  user              User         @relation(fields: [authorId], references: [id])
+  client            Client       @relation(fields: [clientId], references: [id])
+  parent            Note?        @relation("NoteVersionHistory", fields: [parentId], references: [id])
+  versions          Note[]       @relation("NoteVersionHistory")
   
   @@index([authorId])
   @@index([clientId])
   @@index([createdAt])
+  @@index([parentId])
+  @@index([isLatest])
+  @@index([isSignificant])
   @@index([organizationId])
   @@map("notes")
 }

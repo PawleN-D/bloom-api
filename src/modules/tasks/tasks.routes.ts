@@ -7,6 +7,30 @@ import { TasksService } from './tasks.service';
 export async function tasksRoutes(server: FastifyInstance) {
   const tasksService = new TasksService();
 
+  const medicationRefusalHook = async (request: any) => {
+    if (request.routerPath !== '/:id/complete') {
+      return;
+    }
+
+    const status = request.body?.status;
+    if (status !== 'REFUSED') {
+      return;
+    }
+
+    const task = await tasksService.getTask(request, request.params.id);
+    if (task.category === 'MEDICATION') {
+      request.log.warn(
+        {
+          taskId: task.id,
+          clientId: task.clientId,
+          category: task.category,
+          status,
+        },
+        'Critical alert hook triggered: medication task refused'
+      );
+    }
+  };
+
   server.get('/', {
     schema: {
       tags: ['Tasks'],
@@ -28,6 +52,31 @@ export async function tasksRoutes(server: FastifyInstance) {
   }, async (request) => {
     const tasks = await tasksService.getTasks(request, request.query);
     return { data: tasks };
+  });
+
+  server.get('/audit-export', {
+    schema: {
+      tags: ['Tasks'],
+      summary: 'Generate narrative care audit export payload',
+      querystring: {
+        type: 'object',
+        properties: {
+          clientId: { type: 'string' },
+          startDate: { type: 'string', format: 'date-time' },
+          endDate: { type: 'string', format: 'date-time' },
+        },
+        required: ['clientId', 'startDate', 'endDate'],
+      },
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.READ_TASK),
+    ],
+  }, async (request: any) => {
+    const { clientId, startDate, endDate } = request.query;
+    const report = await tasksService.getNarrativeAuditReport(request, clientId, startDate, endDate);
+    return { data: report };
   });
 
   server.get('/:id', {
@@ -139,6 +188,13 @@ export async function tasksRoutes(server: FastifyInstance) {
         type: 'object',
         properties: {
           notes: { type: 'string' },
+          status: {
+            type: 'string',
+            enum: ['COMPLETE', 'INCOMPLETE', 'REFUSED'],
+          },
+          refusalReason: { type: 'string' },
+          signatureSvg: { type: 'string' },
+          initials: { type: 'string' },
         },
       },
     },
@@ -146,13 +202,10 @@ export async function tasksRoutes(server: FastifyInstance) {
       authMiddleware,
       tenantContext,
       authorize(Permission.UPDATE_TASK),
+      medicationRefusalHook,
     ],
   }, async (request: any, reply) => {
-    const result = await tasksService.completeTask(
-      request,
-      request.params.id,
-      request.body?.notes
-    );
+    const result = await tasksService.completeTask(request, request.params.id, request.body || {});
     return reply.send(result);
   });
 }

@@ -1,29 +1,32 @@
 import { FastifyRequest } from 'fastify';
 import { prisma } from '../../shared/database/prisma';
 import { withTenantIsolation } from '../../shared/middleware/tenant-context';
+import { TaskCompletionStatus } from '@prisma/client';
+
+interface CompleteTaskInput {
+  notes?: string;
+  status?: TaskCompletionStatus;
+  refusalReason?: string;
+  signatureSvg?: string;
+  initials?: string;
+}
 
 export class TasksService {
-  
-  /**
-   * Get all tasks for current organization
-   */
   async getTasks(request: FastifyRequest, filters?: any) {
     const { clientId, search } = filters || {};
-    
-    // Build where clause with tenant isolation
+
     const where = withTenantIsolation(request, {
       clientId: clientId || undefined,
     });
-    
-    // Add search filter
+
     if (search) {
       (where as any).OR = [
         { title: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
       ];
     }
-    
-    const tasks = await prisma.task.findMany({
+
+    return prisma.task.findMany({
       where,
       include: {
         client: {
@@ -48,18 +51,10 @@ export class TasksService {
           },
         },
       },
-      orderBy: [
-        { priority: 'desc' },
-        { dueDate: 'asc' },
-      ],
+      orderBy: [{ priority: 'desc' }, { dueDate: 'asc' }],
     });
-    
-    return tasks;
   }
-  
-  /**
-   * Get single task
-   */
+
   async getTask(request: FastifyRequest, id: string) {
     const task = await prisma.task.findUnique({
       where: withTenantIsolation(request, { id }),
@@ -86,37 +81,32 @@ export class TasksService {
         },
       },
     });
-    
+
     if (!task) {
       throw new Error('Task not found');
     }
-    
+
     return task;
   }
-  
-  /**
-   * Create task
-   */
+
   async createTask(request: FastifyRequest, data: any) {
     const org = request.organization;
-    
+
     if (!org) {
       throw new Error('Organization required');
     }
-    
-    // Verify client belongs to organization
+
     const client = await prisma.client.findUnique({
       where: withTenantIsolation(request, { id: data.clientId }),
     });
-    
+
     if (!client) {
       throw new Error('Client not found in your organization');
     }
-    
-    // Generate ID
+
     const taskId = require('crypto').randomBytes(16).toString('hex');
-    
-    const task = await prisma.task.create({
+
+    return prisma.task.create({
       data: {
         id: taskId,
         title: data.title,
@@ -139,27 +129,21 @@ export class TasksService {
         },
       },
     });
-    
-    return task;
   }
-  
-  /**
-   * Update task
-   */
+
   async updateTask(request: FastifyRequest, id: string, data: any) {
-    // Verify task belongs to organization
     const existing = await prisma.task.findUnique({
       where: withTenantIsolation(request, { id }),
     });
-    
+
     if (!existing) {
       throw new Error('Task not found');
     }
-    
+
     const updateData: any = {
       updatedAt: new Date(),
     };
-    
+
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.category !== undefined) updateData.category = data.category;
@@ -168,8 +152,8 @@ export class TasksService {
       updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
     }
     if (data.isRecurring !== undefined) updateData.isRecurring = data.isRecurring;
-    
-    const task = await prisma.task.update({
+
+    return prisma.task.update({
       where: { id },
       data: updateData,
       include: {
@@ -181,34 +165,23 @@ export class TasksService {
         },
       },
     });
-    
-    return task;
   }
-  
-  /**
-   * Delete task
-   */
+
   async deleteTask(request: FastifyRequest, id: string) {
-    // Verify task belongs to organization
     const existing = await prisma.task.findUnique({
       where: withTenantIsolation(request, { id }),
     });
-    
+
     if (!existing) {
       throw new Error('Task not found');
     }
-    
-    await prisma.task.delete({
-      where: { id },
-    });
-    
+
+    await prisma.task.delete({ where: { id } });
+
     return { message: 'Task deleted successfully' };
   }
-  
-  /**
-   * Complete task
-   */
-  async completeTask(request: FastifyRequest, id: string, notes?: string) {
+
+  async completeTask(request: FastifyRequest, id: string, input: CompleteTaskInput = {}) {
     const user = request.user;
     if (!user) {
       throw new Error('User required');
@@ -217,22 +190,42 @@ export class TasksService {
     const task = await prisma.task.findUnique({
       where: withTenantIsolation(request, { id }),
     });
-    
+
     if (!task) {
       throw new Error('Task not found');
     }
-    
-    // Generate completion ID
+
+    const status = input.status || TaskCompletionStatus.COMPLETE;
+
+    if (status === TaskCompletionStatus.INCOMPLETE || status === TaskCompletionStatus.REFUSED) {
+      if (!input.refusalReason) {
+        throw new Error('Reason for refusal is required for incomplete or refused tasks');
+      }
+    }
+
     const completionId = require('crypto').randomBytes(16).toString('hex');
-    
-    // Create completion record
+    const forwardedFor = request.headers['x-forwarded-for'];
+    const ipAddress = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : (forwardedFor as string | undefined)?.split(',')[0]?.trim() || request.ip || null;
+
+    const criticalAlertFlagged =
+      task.category === 'MEDICATION' && status === TaskCompletionStatus.REFUSED;
+
     const completion = await prisma.taskCompletion.create({
       data: {
         id: completionId,
         taskId: id,
         completedBy: user.id,
         completedAt: new Date(),
-        notes: notes || null,
+        status,
+        refusalReason: input.refusalReason || null,
+        notes: input.notes || null,
+        signatureSvg: input.signatureSvg || null,
+        initials: input.initials || null,
+        deviceInfo: (request.headers['user-agent'] as string) || null,
+        ipAddress,
+        criticalAlertFlagged,
         createdAt: new Date(),
       },
       include: {
@@ -242,12 +235,130 @@ export class TasksService {
             lastName: true,
           },
         },
+        task: {
+          select: {
+            title: true,
+            category: true,
+          },
+        },
       },
     });
-    
-    return { 
+
+    return {
       message: 'Task completed successfully',
       completion,
+      criticalAlert: criticalAlertFlagged
+        ? 'Critical alert: medication task marked as refused'
+        : null,
+    };
+  }
+
+  async getNarrativeAuditReport(
+    request: FastifyRequest,
+    clientId: string,
+    startDate: string,
+    endDate: string
+  ) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    const tasks = await prisma.task.findMany({
+      where: withTenantIsolation(request, {
+        clientId,
+      }),
+      include: {
+        taskCompletions: {
+          where: {
+            completedAt: {
+              gte: start,
+              lte: end,
+            },
+          },
+          include: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+          orderBy: {
+            completedAt: 'asc',
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    const notes = await prisma.note.findMany({
+      where: withTenantIsolation(request, {
+        clientId,
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+      }),
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter((task) =>
+      task.taskCompletions.some((completion) => completion.status === TaskCompletionStatus.COMPLETE)
+    ).length;
+
+    const completionPercentage = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+
+    const chronologicalLog = tasks.flatMap((task) =>
+      task.taskCompletions.map((completion) => ({
+        type: 'TASK_COMPLETION',
+        taskId: task.id,
+        taskTitle: task.title,
+        taskCategory: task.category,
+        status: completion.status,
+        refusalReason: completion.refusalReason,
+        completionNotes: completion.notes,
+        completedAt: completion.completedAt,
+        originalEntryTimestamp: completion.createdAt,
+        editedTimestamp: completion.completedAt,
+        completedBy: `${completion.user.firstName} ${completion.user.lastName}`,
+      }))
+    ).sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime());
+
+    const incidentsOrRefusals = [
+      ...notes
+        .filter((note) => note.category === 'INCIDENT')
+        .map((note) => ({
+          source: 'NOTE',
+          noteId: note.id,
+          category: note.category,
+          content: note.content,
+          createdAt: note.createdAt,
+          originalCreatedAt: note.originalCreatedAt,
+        })),
+      ...chronologicalLog
+        .filter((entry) => entry.status === TaskCompletionStatus.REFUSED)
+        .map((entry) => ({
+          source: 'TASK',
+          taskId: entry.taskId,
+          taskTitle: entry.taskTitle,
+          refusalReason: entry.refusalReason,
+          createdAt: entry.completedAt,
+        })),
+    ];
+
+    return {
+      clientId,
+      dateRange: {
+        start,
+        end,
+      },
+      completionPercentage,
+      chronologicalLog,
+      incidentsOrRefusals,
     };
   }
 }
