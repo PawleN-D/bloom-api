@@ -51,11 +51,22 @@ enum UserRole {
   SUPER_ADMIN
 }
 
+enum UserStatus {
+  PENDING
+  ACTIVE
+}
+
 enum SubscriptionPlan {
   FREE
   STARTER
   PROFESSIONAL
   ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  SUSPENDED
+  PAST_DUE
 }
 
 enum FeatureCategory {
@@ -65,6 +76,11 @@ enum FeatureCategory {
   ADVANCED
   INTEGRATIONS
   ENTERPRISE
+}
+
+enum AuditAccessStatus {
+  SUCCESS
+  FAILED
 }
 
 // ============================================================================
@@ -81,6 +97,7 @@ model Organization {
   primaryColor String?  @default("#0F766E")
   
   plan         SubscriptionPlan @default(STARTER)
+  subscriptionStatus SubscriptionStatus @default(ACTIVE)
   billingEmail String?
   maxUsers     Int      @default(10)
   maxClients   Int      @default(50)
@@ -98,9 +115,12 @@ model Organization {
   tasks       Task[]
   notes       Note[]
   organizationFeatures OrganizationFeature[]
+  auditAccessLogs AuditAccessLog[]
+  securityLogs   SecurityLog[]
   
   @@index([slug])
   @@index([active])
+  @@index([subscriptionStatus])
 }
 
 model Feature {
@@ -149,7 +169,13 @@ model OrganizationFeature {
 model User {
   id             String   @id
   email          String   @unique
-  password       String
+  passwordHash   String?
+  pinHash        String?
+  invitationToken String? @unique
+  tokenExpires   DateTime?
+  status         UserStatus @default(PENDING)
+  dbsExpiresAt   DateTime?
+  trainingExpiresAt DateTime?
   firstName      String
   lastName       String
   role           UserRole @default(WORKER)
@@ -165,9 +191,12 @@ model User {
   assignments      Assignment[]
   notes            Note[]
   taskCompletions  TaskCompletion[]
+  securityLogs     SecurityLog[]
   
   @@index([email])
   @@index([organizationId])
+  @@index([dbsExpiresAt])
+  @@index([trainingExpiresAt])
   @@map("users")
 }
 
@@ -198,6 +227,7 @@ model Client {
   files                    File[]
   notes                    Note[]
   tasks                    Task[]
+  auditAccessLogs          AuditAccessLog[]
   
   @@index([lastName])
   @@index([organizationId])
@@ -255,19 +285,64 @@ model TaskCompletion {
   status               TaskCompletionStatus @default(COMPLETE)
   refusalReason        String?
   notes                String?
+  version              Int                  @default(1)
+  parentLogId          String?
+  editReason           String?
+  metadata             Json?
   signatureSvg         String?
   initials             String?
   deviceInfo           String?
   ipAddress            String?
   criticalAlertFlagged Boolean              @default(false)
   createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
   
   user        User     @relation(fields: [completedBy], references: [id])
   task        Task     @relation(fields: [taskId], references: [id])
+  parentLog   TaskCompletion? @relation("TaskCompletionVersionHistory", fields: [parentLogId], references: [id])
+  versions    TaskCompletion[] @relation("TaskCompletionVersionHistory")
   
   @@index([completedBy])
+  @@index([completedAt])
+  @@index([completedBy, completedAt])
   @@index([taskId])
+  @@index([parentLogId])
   @@map("task_completions")
+}
+
+model AuditAccessLog {
+  id             String            @id @default(cuid())
+  organizationId String
+  residentId     String
+  managerId      String
+  status         AuditAccessStatus
+  createdAt      DateTime          @default(now())
+
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  resident       Client            @relation(fields: [residentId], references: [id], onDelete: Restrict)
+  manager        User              @relation(fields: [managerId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([residentId])
+  @@index([managerId])
+  @@index([createdAt])
+  @@map("audit_access_logs")
+}
+
+model SecurityLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  userId         String
+  action         String
+  createdAt      DateTime @default(now())
+
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("security_logs")
 }
 
 model Note {
@@ -281,8 +356,8 @@ model Note {
   category          NoteCategory @default(GENERAL)
   clientId          String
   authorId          String
-  parentId          String?
-  versionNumber     Int          @default(1)
+  parentLogId       String?
+  version           Int          @default(1)
   isLatest          Boolean      @default(true)
   editReason        String?
   isSignificant     Boolean      @default(false)
@@ -292,13 +367,15 @@ model Note {
   
   user              User         @relation(fields: [authorId], references: [id])
   client            Client       @relation(fields: [clientId], references: [id])
-  parent            Note?        @relation("NoteVersionHistory", fields: [parentId], references: [id])
+  parent            Note?        @relation("NoteVersionHistory", fields: [parentLogId], references: [id])
   versions          Note[]       @relation("NoteVersionHistory")
   
   @@index([authorId])
   @@index([clientId])
   @@index([createdAt])
-  @@index([parentId])
+  @@index([authorId, createdAt])
+  @@index([clientId, createdAt])
+  @@index([parentLogId])
   @@index([isLatest])
   @@index([isSignificant])
   @@index([organizationId])

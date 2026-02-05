@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt'
 
-import { UserRole } from '@prisma/client'
+import { UserRole, UserStatus } from '@prisma/client'
 import { JWTService } from './jwt.service'
 import { prisma } from '../../shared/database/prisma'
 
@@ -22,6 +22,7 @@ interface LoginResponse {
     role: UserRole
     organizationId?: string | null
     isActive: boolean
+    status: UserStatus
     createdAt: Date
     updatedAt: Date
   }
@@ -74,11 +75,16 @@ export class AuthService {
       data: {
         id: userId,
         email: data.email,
-        password: hashedPassword,
+        passwordHash: hashedPassword,
+        pinHash: null,
+        invitationToken: null,
+        tokenExpires: null,
+        status: UserStatus.ACTIVE,
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role,
         organizationId: data.organizationId || null,
+        isActive: true,
       }
     })
 
@@ -117,8 +123,16 @@ export class AuthService {
       throw new Error('Account is inactive')
     }
 
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new Error('Account setup required')
+    }
+
+    if (!user.passwordHash) {
+      throw new Error('Account setup required')
+    }
+
     // Verify password
-    const isPasswordValid = await this.verifyPassword(password, user.password)
+    const isPasswordValid = await this.verifyPassword(password, user.passwordHash)
 
     if (!isPasswordValid) {
       throw new Error('Invalid credentials')
@@ -130,10 +144,11 @@ export class AuthService {
       email: user.email,
       role: user.role,
       organizationId: user.organizationId,
+      globalAdmin: user.role === UserRole.SUPER_ADMIN,
     })
 
     // Return user without password
-    const { password: _, ...userWithoutPassword } = user
+    const { passwordHash: _, pinHash: __, invitationToken: ___, tokenExpires: ____, ...userWithoutPassword } = user
 
     return {
       user: userWithoutPassword,
@@ -159,11 +174,100 @@ export class AuthService {
       throw new Error('User not found or inactive')
     }
 
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new Error('User not found or inactive')
+    }
+
     return {
       userId: decoded.userId,
       email: decoded.email,
       role: decoded.role,
       organizationId: user.organizationId,
+      globalAdmin: decoded.globalAdmin ?? user.role === UserRole.SUPER_ADMIN,
     }
+  }
+
+  /**
+   * Complete invitation setup with password + PIN
+   */
+  async setupAccount(token: string, password: string, pin: string) {
+    const now = new Date()
+    const user = await prisma.user.findFirst({
+      where: {
+        invitationToken: token,
+      },
+    })
+
+    if (!user || !user.tokenExpires || user.tokenExpires < now) {
+      throw new Error('Invalid or expired invitation token')
+    }
+
+    if (user.status === UserStatus.ACTIVE) {
+      throw new Error('Account already active')
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10)
+    const pinHash = await bcrypt.hash(pin, 10)
+
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        pinHash,
+        invitationToken: null,
+        tokenExpires: null,
+        status: UserStatus.ACTIVE,
+        isActive: true,
+        updatedAt: now,
+      },
+    })
+
+    const accessToken = this.jwtService.generateToken({
+      userId: updated.id,
+      email: updated.email,
+      role: updated.role,
+      organizationId: updated.organizationId,
+      globalAdmin: updated.role === UserRole.SUPER_ADMIN,
+    })
+
+    const { passwordHash: _, pinHash: __, invitationToken: ___, tokenExpires: ____, ...userWithoutSecrets } =
+      updated
+
+    return {
+      user: userWithoutSecrets,
+      token: accessToken,
+    }
+  }
+
+  /**
+   * Verify PIN and issue session-unlock token
+   */
+  async verifyPin(userId: string, pin: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    })
+
+    if (!user || !user.isActive || user.status !== UserStatus.ACTIVE) {
+      throw new Error('User not found or inactive')
+    }
+
+    if (!user.pinHash) {
+      throw new Error('PIN not set')
+    }
+
+    const isValid = await bcrypt.compare(pin, user.pinHash)
+    if (!isValid) {
+      throw new Error('Invalid PIN')
+    }
+
+    const token = this.jwtService.generateSessionUnlockToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      organizationId: user.organizationId,
+      globalAdmin: user.role === UserRole.SUPER_ADMIN,
+    })
+
+    return { token }
   }
 }

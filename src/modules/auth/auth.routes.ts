@@ -50,6 +50,37 @@ export async function authRoutes(server: FastifyInstance) {
     }
   }, authController.login)
 
+  // Invitation setup
+  server.post('/setup', {
+    schema: {
+      tags: ['Auth'],
+      body: {
+        type: 'object',
+        required: ['token', 'password', 'pin'],
+        properties: {
+          token: { type: 'string' },
+          password: { type: 'string', minLength: 8 },
+          pin: { type: 'string', minLength: 4, maxLength: 4 },
+        }
+      }
+    }
+  }, authController.setupAccount)
+
+  // Verify PIN and unlock session (protected)
+  server.post('/verify-pin', {
+    schema: {
+      tags: ['Auth'],
+      body: {
+        type: 'object',
+        required: ['pin'],
+        properties: {
+          pin: { type: 'string', minLength: 4, maxLength: 4 },
+        }
+      }
+    },
+    preHandler: [authMiddleware],
+  }, authController.verifyPin)
+
   // Get current user (protected route)
   server.get('/me', {
     schema: {

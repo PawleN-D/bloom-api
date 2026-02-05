@@ -1,6 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { authMiddleware } from '../../shared/middleware/auth.middleware';
+import { tenantContext } from '../../shared/middleware/tenant-context';
+import { authorize, Permission } from '../../shared/middleware/authorize';
 import { AdminService } from './admin.service';
+import { UsersService } from '../users/users.service';
+import { z } from 'zod';
 
 /**
  * Super Admin Routes
@@ -8,6 +12,14 @@ import { AdminService } from './admin.service';
  */
 export async function adminRoutes(server: FastifyInstance) {
   const adminService = new AdminService();
+  const usersService = new UsersService();
+
+  const inviteSchema = z.object({
+    email: z.string().email(),
+    role: z.enum(['WORKER', 'ADMIN', 'MANAGER', 'ORG_OWNER', 'SUPER_ADMIN']),
+    firstName: z.string().min(1).optional(),
+    lastName: z.string().min(1).optional(),
+  });
   
   // Middleware to ensure SUPER_ADMIN only
   const requireSuperAdmin = async (request: any, reply: any) => {
@@ -18,6 +30,30 @@ export async function adminRoutes(server: FastifyInstance) {
       });
     }
   };
+
+  // POST /api/admin/invite - Invite staff (manager+)
+  server.post('/invite', {
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.CREATE_USER),
+    ]
+  }, async (request, reply) => {
+    try {
+      const parsed = inviteSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          error: 'Validation error',
+          details: parsed.error.flatten(),
+        });
+      }
+
+      const invited = await usersService.inviteUser(request, parsed.data);
+      return reply.status(201).send({ data: invited });
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
+    }
+  });
   
   // GET /api/admin/organizations - List all organizations
   server.get('/organizations', {

@@ -3,9 +3,35 @@ import { authMiddleware } from '../../shared/middleware/auth.middleware';
 import { tenantContext } from '../../shared/middleware/tenant-context';
 import { authorize, Permission } from '../../shared/middleware/authorize';
 import { TasksService } from './tasks.service';
+import { z } from 'zod';
 
 export async function tasksRoutes(server: FastifyInstance) {
   const tasksService = new TasksService();
+  const logSchema = z.object({
+    taskId: z.string().min(1),
+    status: z.enum(['COMPLETE', 'INCOMPLETE', 'REFUSED']).optional(),
+    notes: z.string().optional(),
+    refusalReason: z.string().optional(),
+    metadata: z.record(z.any()).optional(),
+    originalLogId: z.string().optional(),
+    editReason: z.string().optional(),
+  }).refine((data) => {
+    if (data.status === 'INCOMPLETE' || data.status === 'REFUSED') {
+      return Boolean(data.refusalReason);
+    }
+    return true;
+  }, {
+    path: ['refusalReason'],
+    message: 'refusalReason is required for incomplete or refused statuses',
+  }).refine((data) => {
+    if (data.originalLogId) {
+      return Boolean(data.editReason);
+    }
+    return true;
+  }, {
+    path: ['editReason'],
+    message: 'editReason is required when originalLogId is provided',
+  });
 
   const medicationRefusalHook = async (request: any) => {
     if (request.routerPath !== '/:id/complete') {
@@ -207,5 +233,42 @@ export async function tasksRoutes(server: FastifyInstance) {
   }, async (request: any, reply) => {
     const result = await tasksService.completeTask(request, request.params.id, request.body || {});
     return reply.send(result);
+  });
+
+  // POST /api/tasks/log - Immutable task log (handshake)
+  server.post('/log', {
+    schema: {
+      tags: ['Tasks'],
+      summary: 'Log task completion (immutable audit)',
+      body: {
+        type: 'object',
+        required: ['taskId'],
+        properties: {
+          taskId: { type: 'string' },
+          status: { type: 'string', enum: ['COMPLETE', 'INCOMPLETE', 'REFUSED'] },
+          notes: { type: 'string' },
+          refusalReason: { type: 'string' },
+          metadata: { type: 'object', additionalProperties: true },
+          originalLogId: { type: 'string' },
+          editReason: { type: 'string' },
+        },
+      },
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.COMPLETE_TASK),
+    ],
+  }, async (request: any, reply) => {
+    const parsed = logSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Validation error',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const result = await tasksService.logTask(request, parsed.data);
+    return reply.status(201).send({ data: result });
   });
 }

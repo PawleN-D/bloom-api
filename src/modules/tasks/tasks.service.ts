@@ -2,6 +2,7 @@ import { FastifyRequest } from 'fastify';
 import { prisma } from '../../shared/database/prisma';
 import { withTenantIsolation } from '../../shared/middleware/tenant-context';
 import { TaskCompletionStatus } from '@prisma/client';
+import { isPrivilegedRole } from '../../shared/constants/privileged-roles';
 
 interface CompleteTaskInput {
   notes?: string;
@@ -11,13 +12,38 @@ interface CompleteTaskInput {
   initials?: string;
 }
 
+interface LogTaskInput {
+  taskId: string;
+  status?: TaskCompletionStatus;
+  notes?: string;
+  refusalReason?: string;
+  metadata?: Record<string, any>;
+  originalLogId?: string;
+  editReason?: string;
+}
+
 export class TasksService {
   async getTasks(request: FastifyRequest, filters?: any) {
     const { clientId, search } = filters || {};
+    const user = request.user;
+    if (!user) {
+      throw new Error('User required');
+    }
 
     const where = withTenantIsolation(request, {
       clientId: clientId || undefined,
     });
+
+    if (!isPrivilegedRole(user.role)) {
+      (where as any).client = {
+        assignments: {
+          some: {
+            userId: user.id,
+            isActive: true,
+          },
+        },
+      };
+    }
 
     if (search) {
       (where as any).OR = [
@@ -221,12 +247,17 @@ export class TasksService {
         status,
         refusalReason: input.refusalReason || null,
         notes: input.notes || null,
+        version: 1,
+        parentLogId: null,
+        editReason: null,
+        metadata: null,
         signatureSvg: input.signatureSvg || null,
         initials: input.initials || null,
         deviceInfo: (request.headers['user-agent'] as string) || null,
         ipAddress,
         criticalAlertFlagged,
         createdAt: new Date(),
+        updatedAt: new Date(),
       },
       include: {
         user: {
@@ -246,6 +277,111 @@ export class TasksService {
 
     return {
       message: 'Task completed successfully',
+      completion,
+      criticalAlert: criticalAlertFlagged
+        ? 'Critical alert: medication task marked as refused'
+        : null,
+    };
+  }
+
+  /**
+   * Log a task completion with immutable audit trail
+   */
+  async logTask(request: FastifyRequest, input: LogTaskInput) {
+    const user = request.user;
+    if (!user) {
+      throw new Error('User required');
+    }
+
+    const task = await prisma.task.findUnique({
+      where: withTenantIsolation(request, { id: input.taskId }),
+    });
+
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    const status = input.status || TaskCompletionStatus.COMPLETE;
+
+    if (status === TaskCompletionStatus.INCOMPLETE || status === TaskCompletionStatus.REFUSED) {
+      if (!input.refusalReason) {
+        throw new Error('Reason for refusal is required for incomplete or refused tasks');
+      }
+    }
+
+    let version = 1;
+    let parentLogId: string | null = null;
+
+    if (input.originalLogId) {
+      const original = await prisma.taskCompletion.findUnique({
+        where: { id: input.originalLogId },
+        include: {
+          task: true,
+        },
+      });
+
+      if (!original || original.task.organizationId !== task.organizationId) {
+        throw new Error('Original log not found');
+      }
+
+      if (!input.editReason) {
+        throw new Error('Edit reason is required for immutable audit trail');
+      }
+
+      parentLogId = original.id;
+      version = original.version + 1;
+    }
+
+    const completionId = require('crypto').randomBytes(16).toString('hex');
+    const forwardedFor = request.headers['x-forwarded-for'];
+    const ipAddress = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : (forwardedFor as string | undefined)?.split(',')[0]?.trim() || request.ip || null;
+
+    const criticalAlertFlagged =
+      task.category === 'MEDICATION' && status === TaskCompletionStatus.REFUSED;
+
+    const now = new Date();
+
+    const completion = await prisma.taskCompletion.create({
+      data: {
+        id: completionId,
+        taskId: task.id,
+        completedBy: user.id,
+        completedAt: now,
+        status,
+        refusalReason: input.refusalReason || null,
+        notes: input.notes || null,
+        version,
+        parentLogId,
+        editReason: input.editReason || null,
+        metadata: input.metadata || null,
+        signatureSvg: null,
+        initials: null,
+        deviceInfo: (request.headers['user-agent'] as string) || null,
+        ipAddress,
+        criticalAlertFlagged,
+        createdAt: now,
+        updatedAt: now,
+      },
+      include: {
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        task: {
+          select: {
+            title: true,
+            category: true,
+          },
+        },
+      },
+    });
+
+    return {
+      message: 'Task log created successfully',
       completion,
       criticalAlert: criticalAlertFlagged
         ? 'Critical alert: medication task marked as refused'
@@ -322,6 +458,8 @@ export class TasksService {
         refusalReason: completion.refusalReason,
         completionNotes: completion.notes,
         completedAt: completion.completedAt,
+        createdAt: completion.createdAt,
+        updatedAt: completion.updatedAt,
         originalEntryTimestamp: completion.createdAt,
         editedTimestamp: completion.completedAt,
         completedBy: `${completion.user.firstName} ${completion.user.lastName}`,
@@ -337,6 +475,7 @@ export class TasksService {
           category: note.category,
           content: note.content,
           createdAt: note.createdAt,
+          updatedAt: note.updatedAt,
           originalCreatedAt: note.originalCreatedAt,
         })),
       ...chronologicalLog
@@ -346,7 +485,8 @@ export class TasksService {
           taskId: entry.taskId,
           taskTitle: entry.taskTitle,
           refusalReason: entry.refusalReason,
-          createdAt: entry.completedAt,
+          createdAt: entry.createdAt,
+          updatedAt: entry.updatedAt,
         })),
     ];
 

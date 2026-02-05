@@ -57,7 +57,7 @@ describe('NotesService', () => {
       expect(note.category).toBe(NoteCategory.PROGRESS);
       expect(note.organizationId).toBe(org1.id);
       expect(note.authorId).toBe(worker1.id);
-      expect(note.versionNumber).toBe(1);
+      expect(note.version).toBe(1);
       expect(note.isLatest).toBe(true);
     });
 
@@ -85,7 +85,7 @@ describe('NotesService', () => {
           authorId: worker1.id,
           organizationId: org1.id,
           isLatest: true,
-          versionNumber: 1,
+          version: 1,
           originalCreatedAt: new Date(),
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -100,7 +100,7 @@ describe('NotesService', () => {
           authorId: worker1.id,
           organizationId: org2.id,
           isLatest: true,
-          versionNumber: 1,
+          version: 1,
           originalCreatedAt: new Date(),
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -123,7 +123,7 @@ describe('NotesService', () => {
           authorId: worker1.id,
           organizationId: org1.id,
           isLatest: true,
-          versionNumber: 1,
+          version: 1,
           originalCreatedAt: new Date(),
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -138,7 +138,7 @@ describe('NotesService', () => {
           authorId: worker2.id,
           organizationId: org1.id,
           isLatest: true,
-          versionNumber: 1,
+          version: 1,
           originalCreatedAt: new Date(),
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -163,7 +163,7 @@ describe('NotesService', () => {
           authorId: worker2.id,
           organizationId: org1.id,
           isLatest: true,
-          versionNumber: 1,
+          version: 1,
           originalCreatedAt: new Date(),
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -189,8 +189,8 @@ describe('NotesService', () => {
 
       const storedOriginal = await prisma.note.findUnique({ where: { id: original.id } });
       expect(storedOriginal?.isLatest).toBe(false);
-      expect(updated.parentId).toBe(original.id);
-      expect(updated.versionNumber).toBe(2);
+      expect(updated.parentLogId).toBe(original.id);
+      expect(updated.version).toBe(2);
       expect(updated.editReason).toBe('Additional detail included');
       expect(updated.isLatest).toBe(true);
     });

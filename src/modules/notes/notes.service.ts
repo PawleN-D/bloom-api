@@ -104,7 +104,7 @@ export class NotesService {
             id: true,
             createdAt: true,
             content: true,
-            versionNumber: true,
+            version: true,
           },
         },
       },
@@ -161,9 +161,9 @@ export class NotesService {
         clientId: data.clientId,
         authorId: user.id,
         organizationId: org.id,
-        versionNumber: 1,
+        version: 1,
         isLatest: true,
-        parentId: null,
+        parentLogId: null,
         editReason: data.editReason || null,
         isSignificant: Boolean(data.isSignificant),
         originalCreatedAt: now,
@@ -217,8 +217,8 @@ export class NotesService {
       throw new Error('Edit reason is required for immutable audit trail');
     }
 
-    const nextVersionNumber = existing.versionNumber + 1;
-    const rootId = existing.parentId || existing.id;
+    const nextVersionNumber = existing.version + 1;
+    const rootId = existing.parentLogId || existing.id;
     const newNoteId = require('crypto').randomBytes(16).toString('hex');
     const now = new Date();
 
@@ -238,8 +238,8 @@ export class NotesService {
           clientId: existing.clientId,
           authorId: user?.id || existing.authorId,
           organizationId: existing.organizationId,
-          parentId: rootId,
-          versionNumber: nextVersionNumber,
+          parentLogId: rootId,
+          version: nextVersionNumber,
           isLatest: true,
           editReason: data.editReason,
           isSignificant:
