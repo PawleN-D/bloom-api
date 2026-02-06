@@ -117,7 +117,7 @@ model Organization {
   id          String   @id @default(cuid())
   name        String
   slug        String   @unique
-  subdomain   String?  @unique
+  subdomain   String   @unique
   
   logo         String?
   primaryColor String?  @default("#0F766E")
@@ -148,6 +148,7 @@ model Organization {
   supportTickets SupportTicket[]
   
   @@index([slug])
+  @@index([subdomain])
   @@index([active])
   @@index([subscriptionStatus])
 }

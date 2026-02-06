@@ -23,6 +23,7 @@ export async function hqRoutes(server: FastifyInstance) {
     orgName: z.string().min(1),
     adminEmail: z.string().email(),
     subscriptionPlan: z.enum(['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE']),
+    subdomain: z.string().min(1).optional(),
   });
 
   const planSchema = z.object({
@@ -74,6 +75,7 @@ export async function hqRoutes(server: FastifyInstance) {
         properties: {
           orgName: { type: 'string' },
           adminEmail: { type: 'string' },
+          subdomain: { type: 'string' },
           subscriptionPlan: {
             type: 'string',
             enum: ['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE'],

@@ -8,11 +8,18 @@ import {
 import { prisma } from '../../shared/database/prisma';
 import { config } from '../../config/env';
 import { DEFAULT_BILLING_CYCLE_DAYS, PLAN_CATALOG } from '../../shared/constants/plans';
+import {
+  generateUniqueSubdomain,
+  getOrganizationUrl,
+  isSubdomainAvailable,
+  isValidSubdomain,
+} from '../../shared/utils/subdomain';
 
 type OnboardOrgInput = {
   orgName: string;
   adminEmail: string;
   subscriptionPlan: SubscriptionPlan;
+  subdomain?: string;
 };
 
 function slugify(value: string) {
@@ -47,6 +54,19 @@ export class HQService {
       slug = `${slug}-${randomUUID().slice(0, 4)}`;
     }
 
+    let subdomain = input.subdomain?.trim();
+    if (subdomain) {
+      if (!isValidSubdomain(subdomain)) {
+        throw new Error('Invalid subdomain format');
+      }
+      const available = await isSubdomainAvailable(prisma, subdomain);
+      if (!available) {
+        throw new Error(`Subdomain '${subdomain}' is already taken`);
+      }
+    } else {
+      subdomain = await generateUniqueSubdomain(prisma, input.orgName);
+    }
+
     const plan = PLAN_CATALOG[input.subscriptionPlan];
     const now = new Date();
     const periodEnd = new Date(
@@ -58,7 +78,7 @@ export class HQService {
         id: `org_${randomUUID().slice(0, 8)}`,
         name: input.orgName,
         slug,
-        subdomain: null,
+        subdomain,
         plan: input.subscriptionPlan,
         subscriptionStatus: SubscriptionStatus.ACTIVE,
         billingEmail: input.adminEmail,
@@ -136,8 +156,14 @@ export class HQService {
 
     await this.sendOnboardingInvite(adminUser.email, invitationToken, organization.name);
 
+    const organizationUrl = getOrganizationUrl(subdomain, config.baseDomain);
+    const loginUrl = `${organizationUrl}/login`;
+
     return {
-      organization,
+      organization: {
+        ...organization,
+        url: organizationUrl,
+      },
       subscription,
       adminUser: {
         id: adminUser.id,
@@ -148,6 +174,7 @@ export class HQService {
         createdAt: adminUser.createdAt,
       },
       featuresEnabled: features.map((feature) => feature.key),
+      loginUrl,
       ...(config.nodeEnv === 'production' ? {} : { invitationToken }),
     };
   }
