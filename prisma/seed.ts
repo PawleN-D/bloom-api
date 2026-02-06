@@ -843,7 +843,7 @@ async function main() {
     },
   })
 
-  const task3 = await prisma.task.upsert({
+  await prisma.task.upsert({
     where: { id: 'org1_task_housekeeping_1' },
     update: {
       title: 'Grocery pickup',
@@ -871,7 +871,7 @@ async function main() {
     },
   })
 
-  const task4 = await prisma.task.upsert({
+  await prisma.task.upsert({
     where: { id: 'org1_task_mobility_1' },
     update: {
       title: 'Evening walk',
@@ -955,7 +955,7 @@ async function main() {
     },
   })
 
-  const task7 = await prisma.task.upsert({
+  await prisma.task.upsert({
     where: { id: 'org2_task_meal_1' },
     update: {
       title: 'Prepare low-sodium lunch',
@@ -983,7 +983,7 @@ async function main() {
     },
   })
 
-  const task8 = await prisma.task.upsert({
+  await prisma.task.upsert({
     where: { id: 'org2_task_companion_1' },
     update: {
       title: 'Companionship call',
