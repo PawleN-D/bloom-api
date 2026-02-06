@@ -3,9 +3,26 @@ import { authMiddleware } from '../../shared/middleware/auth.middleware';
 import { tenantContext } from '../../shared/middleware/tenant-context';
 import { authorize, Permission } from '../../shared/middleware/authorize';
 import { OrganizationsService } from './organizations.service';
+import { z } from 'zod';
+import { validateZod } from '../../shared/validation/zod';
 
 export async function organizationsRoutes(server: FastifyInstance) {
   const organizationsService = new OrganizationsService();
+
+  const updateOrgSchema = z.object({
+    name: z.string().min(1).optional(),
+    logo: z.string().min(1).optional(),
+    primaryColor: z.string().min(1).optional(),
+    billingEmail: z.string().email().optional(),
+  }).strict();
+
+  const featureKeyParamSchema = z.object({
+    key: z.string().min(1),
+  });
+
+  const featureConfigSchema = z.object({
+    config: z.record(z.any()).optional(),
+  }).strict();
   
   // GET /api/organization - Get current organization
   server.get('/', {
@@ -31,7 +48,9 @@ export async function organizationsRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const organization = await organizationsService.updateOrganization(request, request.body);
+      const body = validateZod(updateOrgSchema, request.body, reply);
+      if (!body) return;
+      const organization = await organizationsService.updateOrganization(request, body);
       return reply.send({ data: organization });
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });
@@ -77,9 +96,11 @@ export async function organizationsRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { key } = request.params as any;
-      const { config } = request.body as any;
-      const result = await organizationsService.enableFeature(request, key, config);
+      const params = validateZod(featureKeyParamSchema, request.params, reply);
+      if (!params) return;
+      const body = validateZod(featureConfigSchema, request.body, reply);
+      if (!body) return;
+      const result = await organizationsService.enableFeature(request, params.key, body.config);
       return reply.send(result);
     } catch (error: any) {
       const status = error.message.includes('not found') ? 404 : 
@@ -97,8 +118,9 @@ export async function organizationsRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { key } = request.params as any;
-      const result = await organizationsService.disableFeature(request, key);
+      const params = validateZod(featureKeyParamSchema, request.params, reply);
+      if (!params) return;
+      const result = await organizationsService.disableFeature(request, params.key);
       return reply.send(result);
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });

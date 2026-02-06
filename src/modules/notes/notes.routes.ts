@@ -3,9 +3,45 @@ import { authMiddleware } from '../../shared/middleware/auth.middleware';
 import { tenantContext } from '../../shared/middleware/tenant-context';
 import { authorize, Permission } from '../../shared/middleware/authorize';
 import { NotesService } from './notes.service';
+import { z } from 'zod';
+import { validateZod } from '../../shared/validation/zod';
 
 export async function notesRoutes(server: FastifyInstance) {
   const notesService = new NotesService();
+
+  const idParamSchema = z.object({
+    id: z.string().min(1),
+  });
+
+  const listQuerySchema = z.object({
+    clientId: z.string().min(1).optional(),
+    authorId: z.string().min(1).optional(),
+    search: z.string().min(1).optional(),
+    significantOnly: z.preprocess((value) => {
+      if (value === 'true') return true;
+      if (value === 'false') return false;
+      return value;
+    }, z.boolean().optional()),
+  }).passthrough();
+
+  const handoverQuerySchema = z.object({
+    hours: z.coerce.number().int().positive().max(168).optional(),
+  }).passthrough();
+
+  const createNoteSchema = z.object({
+    content: z.string().min(1),
+    category: z.enum(['PROGRESS', 'OBSERVATION', 'INCIDENT', 'COMMUNICATION', 'GENERAL']).optional(),
+    clientId: z.string().min(1),
+    editReason: z.string().min(1).optional(),
+    isSignificant: z.boolean().optional(),
+  }).strict();
+
+  const updateNoteSchema = z.object({
+    content: z.string().min(1),
+    editReason: z.string().min(1),
+    category: z.enum(['PROGRESS', 'OBSERVATION', 'INCIDENT', 'COMMUNICATION', 'GENERAL']).optional(),
+    isSignificant: z.boolean().optional(),
+  }).strict();
 
   server.get('/', {
     schema: {
@@ -18,7 +54,9 @@ export async function notesRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const notes = await notesService.getNotes(request, request.query);
+      const query = validateZod(listQuerySchema, request.query, reply);
+      if (!query) return;
+      const notes = await notesService.getNotes(request, query);
       return reply.send({ data: notes });
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });
@@ -42,7 +80,9 @@ export async function notesRoutes(server: FastifyInstance) {
     ]
   }, async (request: any, reply) => {
     try {
-      const handover = await notesService.getSignificantHandover(request, request.query?.hours || 12);
+      const query = validateZod(handoverQuerySchema, request.query, reply);
+      if (!query) return;
+      const handover = await notesService.getSignificantHandover(request, query.hours || 12);
       return reply.send({ data: handover });
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });
@@ -60,8 +100,9 @@ export async function notesRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const note = await notesService.getNote(request, id);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const note = await notesService.getNote(request, params.id);
       return reply.send({ data: note });
     } catch (error: any) {
       const status = error.message === 'Note not found' ? 404 : 500;
@@ -80,7 +121,9 @@ export async function notesRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const note = await notesService.createNote(request, request.body);
+      const body = validateZod(createNoteSchema, request.body, reply);
+      if (!body) return;
+      const note = await notesService.createNote(request, body);
       return reply.status(201).send({ data: note });
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });
@@ -108,8 +151,11 @@ export async function notesRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const note = await notesService.updateNote(request, id, request.body);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const body = validateZod(updateNoteSchema, request.body, reply);
+      if (!body) return;
+      const note = await notesService.updateNote(request, params.id, body);
       return reply.send({ data: note });
     } catch (error: any) {
       const status = error.message === 'Note not found' ? 404 : 500;
@@ -128,8 +174,9 @@ export async function notesRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const result = await notesService.deleteNote(request, id);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const result = await notesService.deleteNote(request, params.id);
       return reply.send(result);
     } catch (error: any) {
       const status = error.message === 'Note not found' ? 404 : 500;

@@ -5,11 +5,61 @@ import { authorize, Permission } from '../../shared/middleware/authorize';
 import { ClientsService } from './clients.service';
 import { NotesService } from '../notes/notes.service';
 import { TasksService } from '../tasks/tasks.service';
+import { z } from 'zod';
+import { validateZod } from '../../shared/validation/zod';
 
 export async function clientsRoutes(server: FastifyInstance) {
   const clientsService = new ClientsService();
   const tasksService = new TasksService();
   const notesService = new NotesService();
+
+  const idParamSchema = z.object({
+    id: z.string().min(1),
+  });
+
+  const listQuerySchema = z.object({
+    search: z.string().min(1).optional(),
+    active: z.enum(['true', 'false']).optional(),
+  }).passthrough();
+
+  const dateSchema = z.union([
+    z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
+      message: 'Invalid date',
+    }),
+    z.null(),
+  ]);
+
+  const createClientSchema = z.object({
+    id: z.string().min(1).optional(),
+    firstName: z.string().min(1),
+    lastName: z.string().min(1),
+    dateOfBirth: dateSchema.optional(),
+    address: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().email().optional(),
+    conditions: z.string().optional(),
+    allergies: z.string().optional(),
+    carePlan: z.string().optional(),
+    emergencyContactName: z.string().optional(),
+    emergencyContactPhone: z.string().optional(),
+    emergencyContactRelation: z.string().optional(),
+  }).strict();
+
+  const updateClientSchema = z.object({
+    firstName: z.string().min(1).optional(),
+    lastName: z.string().min(1).optional(),
+    dateOfBirth: dateSchema.optional(),
+    address: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().email().optional(),
+    conditions: z.string().optional(),
+    allergies: z.string().optional(),
+    carePlan: z.string().optional(),
+    emergencyContactName: z.string().optional(),
+    emergencyContactPhone: z.string().optional(),
+    emergencyContactRelation: z.string().optional(),
+    isActive: z.boolean().optional(),
+  }).strict();
   
   // GET /api/clients
   server.get('/', {
@@ -23,7 +73,9 @@ export async function clientsRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const clients = await clientsService.getClients(request, request.query);
+      const query = validateZod(listQuerySchema, request.query, reply);
+      if (!query) return;
+      const clients = await clientsService.getClients(request, query);
       return reply.send({ data: clients });
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });
@@ -42,8 +94,9 @@ export async function clientsRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const client = await clientsService.getClient(request, id);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const client = await clientsService.getClient(request, params.id);
       return reply.send({ data: client });
     } catch (error: any) {
       const status = error.message === 'Client not found' ? 404 : 500;
@@ -63,7 +116,9 @@ export async function clientsRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const client = await clientsService.createClient(request, request.body);
+      const body = validateZod(createClientSchema, request.body, reply);
+      if (!body) return;
+      const client = await clientsService.createClient(request, body);
       return reply.status(201).send({ data: client });
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });
@@ -82,8 +137,11 @@ export async function clientsRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const client = await clientsService.updateClient(request, id, request.body);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const body = validateZod(updateClientSchema, request.body, reply);
+      if (!body) return;
+      const client = await clientsService.updateClient(request, params.id, body);
       return reply.send({ data: client });
     } catch (error: any) {
       const status = error.message === 'Client not found' ? 404 : 500;
@@ -103,8 +161,9 @@ export async function clientsRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const result = await clientsService.deleteClient(request, id);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const result = await clientsService.deleteClient(request, params.id);
       return reply.send(result);
     } catch (error: any) {
       const status = error.message === 'Client not found' ? 404 : 500;
@@ -121,8 +180,9 @@ export async function clientsRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const tasks = await tasksService.getTasks(request, { clientId: id });
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const tasks = await tasksService.getTasks(request, { clientId: params.id });
       return reply.send({ data: tasks });
     } catch (error: any) {
       const status = error.message === 'Task not found' ? 404 : 500;
@@ -139,8 +199,9 @@ export async function clientsRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const notes = await notesService.getNotes(request, { clientId: id });
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const notes = await notesService.getNotes(request, { clientId: params.id });
       return reply.send({ data: notes });
     } catch (error: any) {
       const status = error.message === 'Note not found' ? 404 : 500;

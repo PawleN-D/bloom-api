@@ -69,6 +69,32 @@ enum SubscriptionStatus {
   PAST_DUE
 }
 
+enum DiscountType {
+  PERCENT
+  AMOUNT
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
 enum FeatureCategory {
   CORE
   COMPLIANCE
@@ -117,6 +143,9 @@ model Organization {
   organizationFeatures OrganizationFeature[]
   auditAccessLogs AuditAccessLog[]
   securityLogs   SecurityLog[]
+  subscription   Subscription?
+  invoices       Invoice[]
+  supportTickets SupportTicket[]
   
   @@index([slug])
   @@index([active])
@@ -192,6 +221,9 @@ model User {
   notes            Note[]
   taskCompletions  TaskCompletion[]
   securityLogs     SecurityLog[]
+  supportTicketsCreated SupportTicket[] @relation("SupportTicketCreator")
+  supportTicketsAssigned SupportTicket[] @relation("SupportTicketAssignee")
+  supportNotes SupportNote[]
   
   @@index([email])
   @@index([organizationId])
@@ -334,6 +366,10 @@ model SecurityLog {
   organizationId String?
   userId         String
   action         String
+  metadata       Json?
+  statusCode     Int?
+  ipAddress      String?
+  userAgent      String?
   createdAt      DateTime @default(now())
 
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -342,7 +378,158 @@ model SecurityLog {
   @@index([organizationId])
   @@index([userId])
   @@index([createdAt])
+  @@index([action])
   @@map("security_logs")
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  organizationId     String             @unique
+  plan               SubscriptionPlan
+  status             SubscriptionStatus @default(ACTIVE)
+  priceCents         Int
+  currency           String             @default("USD")
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean            @default(false)
+  cancelRequestedAt  DateTime?
+  canceledAt         DateTime?
+  gracePeriodEndsAt  DateTime?
+  pausedAt           DateTime?
+  resumedAt          DateTime?
+  discountId         String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  discount           Discount?          @relation(fields: [discountId], references: [id])
+  invoices           Invoice[]
+  redemptions        DiscountRedemption[]
+
+  @@index([status])
+  @@index([currentPeriodEnd])
+  @@index([discountId])
+  @@map("subscriptions")
+}
+
+model Discount {
+  id              String        @id @default(cuid())
+  code            String        @unique
+  type            DiscountType
+  value           Int
+  active          Boolean       @default(true)
+  maxRedemptions  Int?
+  redeemedCount   Int           @default(0)
+  validFrom       DateTime?
+  validTo         DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  subscriptions   Subscription[]
+  redemptions     DiscountRedemption[]
+
+  @@index([active])
+  @@index([validFrom])
+  @@index([validTo])
+  @@map("discounts")
+}
+
+model DiscountRedemption {
+  id              String       @id @default(cuid())
+  discountId      String
+  subscriptionId  String
+  organizationId  String
+  redeemedAt      DateTime     @default(now())
+
+  discount        Discount     @relation(fields: [discountId], references: [id], onDelete: Cascade)
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([discountId, subscriptionId])
+  @@index([organizationId])
+  @@index([redeemedAt])
+  @@map("discount_redemptions")
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  organizationId  String
+  subscriptionId  String
+  status          InvoiceStatus @default(OPEN)
+  subtotalCents   Int
+  discountCents   Int           @default(0)
+  totalCents      Int
+  currency        String        @default("USD")
+  issuedAt        DateTime      @default(now())
+  dueAt           DateTime
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription    Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  lineItems       InvoiceLineItem[]
+
+  @@index([organizationId])
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([issuedAt])
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Int      @default(1)
+  amountCents Int
+  createdAt   DateTime @default(now())
+
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_line_items")
+}
+
+model SupportTicket {
+  id             String               @id @default(cuid())
+  organizationId String?
+  subject        String
+  description    String
+  status         SupportTicketStatus  @default(OPEN)
+  priority       SupportTicketPriority @default(MEDIUM)
+  createdById    String?
+  assignedToId   String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  organization   Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User?                @relation("SupportTicketCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  assignedTo     User?                @relation("SupportTicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  notes          SupportNote[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+  @@map("support_tickets")
+}
+
+model SupportNote {
+  id         String   @id @default(cuid())
+  ticketId   String
+  authorId   String?
+  body       String
+  internal   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author     User?         @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+  @@index([authorId])
+  @@index([createdAt])
+  @@map("support_notes")
 }
 
 model Note {

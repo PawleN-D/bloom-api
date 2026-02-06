@@ -11,6 +11,7 @@ import {
   UserStatus,
 } from '@prisma/client'
 import bcrypt from 'bcrypt'
+import { DEFAULT_BILLING_CYCLE_DAYS, PLAN_CATALOG } from '../src/shared/constants/plans'
 
 const prisma = new PrismaClient()
 
@@ -98,6 +99,60 @@ async function main() {
     },
   })
   console.log('Created org:', org2.name)
+
+  const billingPeriodEnd = daysFromNow(DEFAULT_BILLING_CYCLE_DAYS)
+
+  await prisma.subscription.upsert({
+    where: { organizationId: org1.id },
+    update: {
+      plan: org1.plan,
+      status: SubscriptionStatus.ACTIVE,
+      priceCents: PLAN_CATALOG[org1.plan].priceCents,
+      currency: PLAN_CATALOG[org1.plan].currency,
+      currentPeriodStart: now,
+      currentPeriodEnd: billingPeriodEnd,
+      updatedAt: now,
+    },
+    create: {
+      id: 'sub_org1',
+      organizationId: org1.id,
+      plan: org1.plan,
+      status: SubscriptionStatus.ACTIVE,
+      priceCents: PLAN_CATALOG[org1.plan].priceCents,
+      currency: PLAN_CATALOG[org1.plan].currency,
+      currentPeriodStart: now,
+      currentPeriodEnd: billingPeriodEnd,
+      cancelAtPeriodEnd: false,
+      createdAt: now,
+      updatedAt: now,
+    },
+  })
+
+  await prisma.subscription.upsert({
+    where: { organizationId: org2.id },
+    update: {
+      plan: org2.plan,
+      status: SubscriptionStatus.ACTIVE,
+      priceCents: PLAN_CATALOG[org2.plan].priceCents,
+      currency: PLAN_CATALOG[org2.plan].currency,
+      currentPeriodStart: now,
+      currentPeriodEnd: billingPeriodEnd,
+      updatedAt: now,
+    },
+    create: {
+      id: 'sub_org2',
+      organizationId: org2.id,
+      plan: org2.plan,
+      status: SubscriptionStatus.ACTIVE,
+      priceCents: PLAN_CATALOG[org2.plan].priceCents,
+      currency: PLAN_CATALOG[org2.plan].currency,
+      currentPeriodStart: now,
+      currentPeriodEnd: billingPeriodEnd,
+      cancelAtPeriodEnd: false,
+      createdAt: now,
+      updatedAt: now,
+    },
+  })
 
   const featureSeed = [
     {

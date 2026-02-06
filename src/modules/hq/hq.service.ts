@@ -1,24 +1,18 @@
 import { randomUUID } from 'crypto';
-import { SubscriptionPlan, SubscriptionStatus, UserRole, UserStatus } from '@prisma/client';
+import {
+  SubscriptionPlan,
+  SubscriptionStatus,
+  UserRole,
+  UserStatus,
+} from '@prisma/client';
 import { prisma } from '../../shared/database/prisma';
 import { config } from '../../config/env';
+import { DEFAULT_BILLING_CYCLE_DAYS, PLAN_CATALOG } from '../../shared/constants/plans';
 
 type OnboardOrgInput = {
   orgName: string;
   adminEmail: string;
   subscriptionPlan: SubscriptionPlan;
-};
-
-type PlanLimits = {
-  maxClients: number;
-  maxUsers: number;
-};
-
-const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
-  FREE: { maxClients: 25, maxUsers: 5 },
-  STARTER: { maxClients: 50, maxUsers: 10 },
-  PROFESSIONAL: { maxClients: 150, maxUsers: 25 },
-  ENTERPRISE: { maxClients: 500, maxUsers: 100 },
 };
 
 function slugify(value: string) {
@@ -53,8 +47,11 @@ export class HQService {
       slug = `${slug}-${randomUUID().slice(0, 4)}`;
     }
 
-    const limits = PLAN_LIMITS[input.subscriptionPlan];
+    const plan = PLAN_CATALOG[input.subscriptionPlan];
     const now = new Date();
+    const periodEnd = new Date(
+      now.getTime() + DEFAULT_BILLING_CYCLE_DAYS * 24 * 60 * 60 * 1000
+    );
 
     const organization = await prisma.organization.create({
       data: {
@@ -65,10 +62,26 @@ export class HQService {
         plan: input.subscriptionPlan,
         subscriptionStatus: SubscriptionStatus.ACTIVE,
         billingEmail: input.adminEmail,
-        maxUsers: limits.maxUsers,
-        maxClients: limits.maxClients,
+        maxUsers: plan.maxUsers,
+        maxClients: plan.maxClients,
         active: true,
         suspended: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+
+    const subscription = await prisma.subscription.create({
+      data: {
+        id: `sub_${randomUUID().slice(0, 10)}`,
+        organizationId: organization.id,
+        plan: input.subscriptionPlan,
+        status: SubscriptionStatus.ACTIVE,
+        priceCents: plan.priceCents,
+        currency: plan.currency,
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+        cancelAtPeriodEnd: false,
         createdAt: now,
         updatedAt: now,
       },
@@ -125,6 +138,7 @@ export class HQService {
 
     return {
       organization,
+      subscription,
       adminUser: {
         id: adminUser.id,
         email: adminUser.email,

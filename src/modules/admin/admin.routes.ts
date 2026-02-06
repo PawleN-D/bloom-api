@@ -1,10 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { authMiddleware } from '../../shared/middleware/auth.middleware';
+import { securityLogHook } from '../../shared/middleware/security-log';
 import { tenantContext } from '../../shared/middleware/tenant-context';
 import { authorize, Permission } from '../../shared/middleware/authorize';
 import { AdminService } from './admin.service';
 import { UsersService } from '../users/users.service';
 import { z } from 'zod';
+import { validateZod } from '../../shared/validation/zod';
 
 /**
  * Super Admin Routes
@@ -14,12 +16,69 @@ export async function adminRoutes(server: FastifyInstance) {
   const adminService = new AdminService();
   const usersService = new UsersService();
 
+  server.addHook('onResponse', securityLogHook);
+
   const inviteSchema = z.object({
     email: z.string().email(),
     role: z.enum(['WORKER', 'ADMIN', 'MANAGER', 'ORG_OWNER', 'SUPER_ADMIN']),
     firstName: z.string().min(1).optional(),
     lastName: z.string().min(1).optional(),
   });
+
+  const dateSchema = z.union([
+    z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
+      message: 'Invalid date',
+    }),
+    z.null(),
+  ]);
+
+  const idParamSchema = z.object({
+    id: z.string().min(1),
+  });
+
+  const listOrgsQuerySchema = z.object({
+    search: z.string().min(1).optional(),
+    plan: z.enum(['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE']).optional(),
+    active: z.enum(['true', 'false']).optional(),
+    suspended: z.enum(['true', 'false']).optional(),
+  }).passthrough();
+
+  const createOrgSchema = z.object({
+    name: z.string().min(1),
+    slug: z.string().min(1).optional(),
+    subdomain: z.string().min(1).optional(),
+    logo: z.string().min(1).optional(),
+    primaryColor: z.string().min(1).optional(),
+    plan: z.enum(['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE']).optional(),
+    billingEmail: z.string().email().optional(),
+    maxUsers: z.number().int().positive().optional(),
+    maxClients: z.number().int().positive().optional(),
+    trialEndsAt: dateSchema.optional(),
+  }).strict();
+
+  const updateOrgSchema = z.object({
+    name: z.string().min(1).optional(),
+    logo: z.string().min(1).optional(),
+    primaryColor: z.string().min(1).optional(),
+    plan: z.enum(['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE']).optional(),
+    billingEmail: z.string().email().optional(),
+    maxUsers: z.number().int().positive().optional(),
+    maxClients: z.number().int().positive().optional(),
+    active: z.boolean().optional(),
+    suspended: z.boolean().optional(),
+    trialEndsAt: dateSchema.optional(),
+  }).strict();
+
+  const createFeatureSchema = z.object({
+    key: z.string().min(1),
+    name: z.string().min(1),
+    description: z.string().optional(),
+    category: z.enum(['CORE', 'COMPLIANCE', 'AI', 'ADVANCED', 'INTEGRATIONS', 'ENTERPRISE']),
+    availableInPlans: z.array(z.enum(['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE'])).optional(),
+    betaFeature: z.boolean().optional(),
+    comingSoon: z.boolean().optional(),
+    defaultEnabled: z.boolean().optional(),
+  }).strict();
   
   // Middleware to ensure SUPER_ADMIN only
   const requireSuperAdmin = async (request: any, reply: any) => {
@@ -60,7 +119,9 @@ export async function adminRoutes(server: FastifyInstance) {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {
-      const organizations = await adminService.listOrganizations(request.query);
+      const query = validateZod(listOrgsQuerySchema, request.query, reply);
+      if (!query) return;
+      const organizations = await adminService.listOrganizations(query);
       return reply.send({ data: organizations });
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });
@@ -72,8 +133,9 @@ export async function adminRoutes(server: FastifyInstance) {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const organization = await adminService.getOrganization(id);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const organization = await adminService.getOrganization(params.id);
       return reply.send({ data: organization });
     } catch (error: any) {
       const status = error.message === 'Organization not found' ? 404 : 500;
@@ -86,7 +148,9 @@ export async function adminRoutes(server: FastifyInstance) {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {
-      const organization = await adminService.createOrganization(request.body);
+      const body = validateZod(createOrgSchema, request.body, reply);
+      if (!body) return;
+      const organization = await adminService.createOrganization(body);
       return reply.status(201).send({ data: organization });
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });
@@ -98,8 +162,11 @@ export async function adminRoutes(server: FastifyInstance) {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const organization = await adminService.updateOrganization(id, request.body);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const body = validateZod(updateOrgSchema, request.body, reply);
+      if (!body) return;
+      const organization = await adminService.updateOrganization(params.id, body);
       return reply.send({ data: organization });
     } catch (error: any) {
       const status = error.message === 'Organization not found' ? 404 : 500;
@@ -112,8 +179,9 @@ export async function adminRoutes(server: FastifyInstance) {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const result = await adminService.suspendOrganization(id);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const result = await adminService.suspendOrganization(params.id);
       return reply.send(result);
     } catch (error: any) {
       const status = error.message === 'Organization not found' ? 404 : 500;
@@ -126,8 +194,9 @@ export async function adminRoutes(server: FastifyInstance) {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const result = await adminService.unsuspendOrganization(id);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const result = await adminService.unsuspendOrganization(params.id);
       return reply.send(result);
     } catch (error: any) {
       const status = error.message === 'Organization not found' ? 404 : 500;
@@ -164,8 +233,9 @@ export async function adminRoutes(server: FastifyInstance) {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const result = await adminService.getOrganizationFeatures(id);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const result = await adminService.getOrganizationFeatures(params.id);
       return reply.send({ data: result });
     } catch (error: any) {
       const status = error.message === 'Organization not found' ? 404 : 500;
@@ -178,7 +248,9 @@ export async function adminRoutes(server: FastifyInstance) {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
     try {
-      const feature = await adminService.createFeature(request.body);
+      const body = validateZod(createFeatureSchema, request.body, reply);
+      if (!body) return;
+      const feature = await adminService.createFeature(body);
       return reply.status(201).send({ data: feature });
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });

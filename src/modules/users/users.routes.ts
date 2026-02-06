@@ -3,9 +3,38 @@ import { authMiddleware } from '../../shared/middleware/auth.middleware';
 import { tenantContext } from '../../shared/middleware/tenant-context';
 import { authorize, Permission } from '../../shared/middleware/authorize';
 import { UsersService } from './users.service';
+import { z } from 'zod';
+import { validateZod } from '../../shared/validation/zod';
 
 export async function usersRoutes(server: FastifyInstance) {
   const usersService = new UsersService();
+
+  const idParamSchema = z.object({
+    id: z.string().min(1),
+  });
+
+  const listQuerySchema = z.object({
+    search: z.string().min(1).optional(),
+    role: z.enum(['WORKER', 'ADMIN', 'MANAGER', 'ORG_OWNER', 'SUPER_ADMIN']).optional(),
+    active: z.enum(['true', 'false']).optional(),
+  }).passthrough();
+
+  const createUserSchema = z.object({
+    email: z.string().email(),
+    role: z.enum(['WORKER', 'ADMIN', 'MANAGER', 'ORG_OWNER', 'SUPER_ADMIN']).optional(),
+    firstName: z.string().min(1).optional(),
+    lastName: z.string().min(1).optional(),
+  }).strict();
+
+  const updateUserSchema = z.object({
+    email: z.string().email().optional(),
+    firstName: z.string().min(1).optional(),
+    lastName: z.string().min(1).optional(),
+  }).strict();
+
+  const updateRoleSchema = z.object({
+    role: z.enum(['WORKER', 'ADMIN', 'MANAGER', 'ORG_OWNER', 'SUPER_ADMIN']),
+  }).strict();
   
   // GET /api/users - List all users in organization
   server.get('/', {
@@ -16,7 +45,9 @@ export async function usersRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const users = await usersService.getUsers(request, request.query);
+      const query = validateZod(listQuerySchema, request.query, reply);
+      if (!query) return;
+      const users = await usersService.getUsers(request, query);
       return reply.send({ data: users });
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });
@@ -32,8 +63,9 @@ export async function usersRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const user = await usersService.getUser(request, id);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const user = await usersService.getUser(request, params.id);
       return reply.send({ data: user });
     } catch (error: any) {
       const status = error.message === 'User not found' ? 404 : 500;
@@ -50,7 +82,9 @@ export async function usersRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const user = await usersService.createUser(request, request.body);
+      const body = validateZod(createUserSchema, request.body, reply);
+      if (!body) return;
+      const user = await usersService.createUser(request, body);
       return reply.status(201).send({ data: user });
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });
@@ -66,8 +100,11 @@ export async function usersRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const user = await usersService.updateUser(request, id, request.body);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const body = validateZod(updateUserSchema, request.body, reply);
+      if (!body) return;
+      const user = await usersService.updateUser(request, params.id, body);
       return reply.send({ data: user });
     } catch (error: any) {
       const status = error.message.includes('not found') ? 404 : 
@@ -85,9 +122,11 @@ export async function usersRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const { role } = request.body as any;
-      const user = await usersService.changeUserRole(request, id, role);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const body = validateZod(updateRoleSchema, request.body, reply);
+      if (!body) return;
+      const user = await usersService.changeUserRole(request, params.id, body.role);
       return reply.send({ data: user });
     } catch (error: any) {
       const status = error.message.includes('not found') ? 404 : 
@@ -105,8 +144,9 @@ export async function usersRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const result = await usersService.deactivateUser(request, id);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const result = await usersService.deactivateUser(request, params.id);
       return reply.send(result);
     } catch (error: any) {
       const status = error.message.includes('not found') ? 404 : 
@@ -124,8 +164,9 @@ export async function usersRoutes(server: FastifyInstance) {
     ]
   }, async (request, reply) => {
     try {
-      const { id } = request.params as any;
-      const user = await usersService.reactivateUser(request, id);
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const user = await usersService.reactivateUser(request, params.id);
       return reply.send({ data: user });
     } catch (error: any) {
       const status = error.message === 'User not found' ? 404 : 500;
