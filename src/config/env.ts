@@ -24,11 +24,21 @@ export const config = {
   frontendUrls: (() => {
     const list = process.env.FRONTEND_URLS
       ? process.env.FRONTEND_URLS.split(',')
-      : [
-          process.env.CARE_APP_URL || process.env.FRONTEND_URL || 'http://localhost:3000',
-          process.env.HQ_APP_URL || 'http://localhost:3001',
-        ];
-    return list.map((item) => item.trim()).filter(Boolean);
+      : [];
+
+    const defaults = [
+      process.env.CARE_APP_URL,
+      process.env.FRONTEND_URL,
+      process.env.HQ_APP_URL,
+      'http://localhost:3000',
+      'http://localhost:3001',
+    ];
+
+    const combined = [...list, ...defaults]
+      .map((item) => (item || '').trim())
+      .filter(Boolean);
+
+    return Array.from(new Set(combined));
   })(),
   
   // Logging
