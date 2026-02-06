@@ -3,9 +3,110 @@ import { authMiddleware } from '../../shared/middleware/auth.middleware';
 import { tenantContext } from '../../shared/middleware/tenant-context';
 import { authorize, Permission } from '../../shared/middleware/authorize';
 import { TasksService } from './tasks.service';
+import { z } from 'zod';
+import { validateZod } from '../../shared/validation/zod';
 
 export async function tasksRoutes(server: FastifyInstance) {
   const tasksService = new TasksService();
+
+  const idParamSchema = z.object({
+    id: z.string().min(1),
+  });
+
+  const listQuerySchema = z.object({
+    clientId: z.string().min(1).optional(),
+    search: z.string().min(1).optional(),
+  }).passthrough();
+
+  const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
+    message: 'Invalid date',
+  });
+
+  const dateSchema = z.union([dateStringSchema, z.null()]);
+
+  const createTaskSchema = z.object({
+    title: z.string().min(1),
+    description: z.string().optional(),
+    category: z.enum([
+      'PERSONAL_CARE',
+      'MEDICATION',
+      'MEAL_PREP',
+      'MOBILITY',
+      'HOUSEKEEPING',
+      'COMPANIONSHIP',
+      'HEALTH_MONITORING',
+      'GENERAL',
+    ]).optional(),
+    priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).optional(),
+    clientId: z.string().min(1),
+    dueDate: dateSchema.optional(),
+    isRecurring: z.boolean().optional(),
+  }).strict();
+
+  const updateTaskSchema = z.object({
+    title: z.string().min(1).optional(),
+    description: z.string().optional(),
+    category: z.enum([
+      'PERSONAL_CARE',
+      'MEDICATION',
+      'MEAL_PREP',
+      'MOBILITY',
+      'HOUSEKEEPING',
+      'COMPANIONSHIP',
+      'HEALTH_MONITORING',
+      'GENERAL',
+    ]).optional(),
+    priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).optional(),
+    dueDate: dateSchema.optional(),
+    isRecurring: z.boolean().optional(),
+  }).strict();
+
+  const completeTaskSchema = z.object({
+    notes: z.string().optional(),
+    status: z.enum(['COMPLETE', 'INCOMPLETE', 'REFUSED']).optional(),
+    refusalReason: z.string().optional(),
+    signatureSvg: z.string().optional(),
+    initials: z.string().optional(),
+  }).strict().refine((data) => {
+    if (data.status === 'INCOMPLETE' || data.status === 'REFUSED') {
+      return Boolean(data.refusalReason);
+    }
+    return true;
+  }, {
+    path: ['refusalReason'],
+    message: 'refusalReason is required for incomplete or refused statuses',
+  });
+
+  const auditExportQuerySchema = z.object({
+    clientId: z.string().min(1),
+    startDate: dateStringSchema,
+    endDate: dateStringSchema,
+  }).strict();
+  const logSchema = z.object({
+    taskId: z.string().min(1),
+    status: z.enum(['COMPLETE', 'INCOMPLETE', 'REFUSED']).optional(),
+    notes: z.string().optional(),
+    refusalReason: z.string().optional(),
+    metadata: z.record(z.any()).optional(),
+    originalLogId: z.string().optional(),
+    editReason: z.string().optional(),
+  }).refine((data) => {
+    if (data.status === 'INCOMPLETE' || data.status === 'REFUSED') {
+      return Boolean(data.refusalReason);
+    }
+    return true;
+  }, {
+    path: ['refusalReason'],
+    message: 'refusalReason is required for incomplete or refused statuses',
+  }).refine((data) => {
+    if (data.originalLogId) {
+      return Boolean(data.editReason);
+    }
+    return true;
+  }, {
+    path: ['editReason'],
+    message: 'editReason is required when originalLogId is provided',
+  });
 
   const medicationRefusalHook = async (request: any) => {
     if (request.routerPath !== '/:id/complete') {
@@ -49,8 +150,10 @@ export async function tasksRoutes(server: FastifyInstance) {
       tenantContext,
       authorize(Permission.READ_TASK),
     ],
-  }, async (request) => {
-    const tasks = await tasksService.getTasks(request, request.query);
+  }, async (request, reply) => {
+    const query = validateZod(listQuerySchema, request.query, reply);
+    if (!query) return;
+    const tasks = await tasksService.getTasks(request, query);
     return { data: tasks };
   });
 
@@ -73,8 +176,10 @@ export async function tasksRoutes(server: FastifyInstance) {
       tenantContext,
       authorize(Permission.READ_TASK),
     ],
-  }, async (request: any) => {
-    const { clientId, startDate, endDate } = request.query;
+  }, async (request: any, reply) => {
+    const query = validateZod(auditExportQuerySchema, request.query, reply);
+    if (!query) return;
+    const { clientId, startDate, endDate } = query;
     const report = await tasksService.getNarrativeAuditReport(request, clientId, startDate, endDate);
     return { data: report };
   });
@@ -96,9 +201,11 @@ export async function tasksRoutes(server: FastifyInstance) {
       tenantContext,
       authorize(Permission.READ_TASK),
     ],
-  }, async (request: any) => {
+  }, async (request: any, reply) => {
+    const params = validateZod(idParamSchema, request.params, reply);
+    if (!params) return;
     return {
-      data: await tasksService.getTask(request, request.params.id),
+      data: await tasksService.getTask(request, params.id),
     };
   });
 
@@ -121,7 +228,9 @@ export async function tasksRoutes(server: FastifyInstance) {
       authorize(Permission.CREATE_TASK),
     ],
   }, async (request: any, reply) => {
-    const task = await tasksService.createTask(request, request.body);
+    const body = validateZod(createTaskSchema, request.body, reply);
+    if (!body) return;
+    const task = await tasksService.createTask(request, body);
     return reply.code(201).send({ data: task });
   });
 
@@ -143,10 +252,14 @@ export async function tasksRoutes(server: FastifyInstance) {
       authorize(Permission.UPDATE_TASK),
     ],
   }, async (request: any, reply) => {
+    const params = validateZod(idParamSchema, request.params, reply);
+    if (!params) return;
+    const body = validateZod(updateTaskSchema, request.body, reply);
+    if (!body) return;
     const task = await tasksService.updateTask(
       request,
-      request.params.id,
-      request.body
+      params.id,
+      body
     );
     return reply.send({ data: task });
   });
@@ -169,7 +282,9 @@ export async function tasksRoutes(server: FastifyInstance) {
       authorize(Permission.DELETE_TASK),
     ],
   }, async (request: any, reply) => {
-    const result = await tasksService.deleteTask(request, request.params.id);
+    const params = validateZod(idParamSchema, request.params, reply);
+    if (!params) return;
+    const result = await tasksService.deleteTask(request, params.id);
     return reply.send(result);
   });
 
@@ -205,7 +320,48 @@ export async function tasksRoutes(server: FastifyInstance) {
       medicationRefusalHook,
     ],
   }, async (request: any, reply) => {
-    const result = await tasksService.completeTask(request, request.params.id, request.body || {});
+    const params = validateZod(idParamSchema, request.params, reply);
+    if (!params) return;
+    const body = validateZod(completeTaskSchema, request.body || {}, reply);
+    if (!body) return;
+    const result = await tasksService.completeTask(request, params.id, body);
     return reply.send(result);
+  });
+
+  // POST /api/tasks/log - Immutable task log (handshake)
+  server.post('/log', {
+    schema: {
+      tags: ['Tasks'],
+      summary: 'Log task completion (immutable audit)',
+      body: {
+        type: 'object',
+        required: ['taskId'],
+        properties: {
+          taskId: { type: 'string' },
+          status: { type: 'string', enum: ['COMPLETE', 'INCOMPLETE', 'REFUSED'] },
+          notes: { type: 'string' },
+          refusalReason: { type: 'string' },
+          metadata: { type: 'object', additionalProperties: true },
+          originalLogId: { type: 'string' },
+          editReason: { type: 'string' },
+        },
+      },
+    },
+    preHandler: [
+      authMiddleware,
+      tenantContext,
+      authorize(Permission.COMPLETE_TASK),
+    ],
+  }, async (request: any, reply) => {
+    const parsed = logSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Validation error',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const result = await tasksService.logTask(request, parsed.data);
+    return reply.status(201).send({ data: result });
   });
 }

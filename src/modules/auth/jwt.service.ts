@@ -4,8 +4,10 @@ import { UserRole } from '@prisma/client'
 export interface JWTPayload {
   userId: string
   email: string
-  role: UserRole
+  role: UserRole | 'CARE_WORKER'
   organizationId?: string | null
+  globalAdmin?: boolean
+  type?: 'access' | 'session-unlock'
 }
 
 export class JWTService {
@@ -19,8 +21,19 @@ export class JWTService {
     }
   }
 
-  generateToken(payload: JWTPayload): string {
-    return jwt.sign(payload, this.secret, { expiresIn: '15m' })
+  generateToken(payload: JWTPayload, expiresIn?: string): string {
+    const tokenPayload: JWTPayload = {
+      ...payload,
+      type: payload.type || 'access',
+    }
+    return jwt.sign(tokenPayload, this.secret, { expiresIn: expiresIn || process.env.JWT_EXPIRES_IN || '15m' })
+  }
+
+  generateSessionUnlockToken(payload: JWTPayload): string {
+    return this.generateToken(
+      { ...payload, type: 'session-unlock' },
+      process.env.SESSION_UNLOCK_EXPIRES_IN || '5m'
+    )
   }
 
   verifyToken(token: string): JWTPayload {

@@ -9,6 +9,7 @@ declare module 'fastify' {
       email: string;
       role: UserRole;
       organizationId?: string | null;
+      globalAdmin?: boolean;
     };
     organization?: Organization;
   }
@@ -50,6 +51,13 @@ export async function tenantContext(
       });
     }
 
+    if (org.subscriptionStatus === 'SUSPENDED') {
+      return reply.status(402).send({
+        error: 'Payment Required',
+        message: 'Organization subscription is suspended',
+      });
+    }
+
     request.organization = org;
     return;
   }
@@ -70,6 +78,13 @@ export async function tenantContext(
     return reply.status(403).send({
       error: 'Organization Inactive',
       message: 'Organization is inactive or suspended',
+    });
+  }
+
+  if (org.subscriptionStatus === 'SUSPENDED') {
+    return reply.status(402).send({
+      error: 'Payment Required',
+      message: 'Organization subscription is suspended',
     });
   }
   

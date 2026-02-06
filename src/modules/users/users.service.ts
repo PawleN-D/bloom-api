@@ -2,7 +2,9 @@ import { FastifyRequest } from 'fastify';
 import { prisma } from '../../shared/database/prisma';
 import { withTenantIsolation } from '../../shared/middleware/tenant-context';
 import { canManageUser } from '../../shared/middleware/authorize';
-import * as bcrypt from 'bcrypt';
+import { UserStatus } from '@prisma/client';
+import { randomUUID } from 'crypto';
+import { config } from '../../config/env';
 
 export class UsersService {
   
@@ -34,6 +36,7 @@ export class UsersService {
         lastName: true,
         role: true,
         isActive: true,
+        status: true,
         createdAt: true,
         updatedAt: true,
         // Don't return password!
@@ -57,6 +60,7 @@ export class UsersService {
         lastName: true,
         role: true,
         isActive: true,
+        status: true,
         organizationId: true,
         createdAt: true,
         updatedAt: true,
@@ -74,75 +78,99 @@ export class UsersService {
    * Create new user (invite to organization)
    */
   async createUser(request: FastifyRequest, data: any) {
+    return this.inviteUser(request, data);
+  }
+
+  /**
+   * Invite user with secure onboarding token
+   */
+  async inviteUser(request: FastifyRequest, data: any) {
     const currentUser = request.user;
     const org = request.organization;
-    
+
     if (!org) {
       throw new Error('Organization required');
     }
-    
+
     // Check if email already exists
     const existing = await prisma.user.findUnique({
       where: { email: data.email },
     });
-    
+
     if (existing) {
       throw new Error('User with this email already exists');
     }
-    
+
     // Validate role assignment
     const requestedRole = data.role || 'WORKER';
     if (!currentUser || !canManageUser(currentUser.role, requestedRole)) {
       throw new Error(`You cannot create users with role: ${requestedRole}`);
     }
-    
+
     // Check organization user limit
     const userCount = await prisma.user.count({
       where: { organizationId: org.id, isActive: true },
     });
-    
+
     if (userCount >= org.maxUsers) {
       throw new Error(`Organization has reached maximum users (${org.maxUsers}). Upgrade plan to add more.`);
     }
-    
-    // Generate temporary password (in production, send invite email)
-    const tempPassword = Math.random().toString(36).slice(-8);
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
-    
-    // Generate ID
+
+    const now = new Date();
+    const invitationToken = randomUUID();
+    const tokenExpires = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    const firstName = data.firstName || 'Pending';
+    const lastName = data.lastName || 'User';
+
     const userId = require('crypto').randomBytes(16).toString('hex');
-    
+
     const user = await prisma.user.create({
       data: {
         id: userId,
         email: data.email,
-        password: hashedPassword,
-        firstName: data.firstName,
-        lastName: data.lastName,
+        passwordHash: null,
+        pinHash: null,
+        invitationToken,
+        tokenExpires,
+        status: UserStatus.PENDING,
+        firstName,
+        lastName,
         role: requestedRole,
         organizationId: org.id,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
+        isActive: false,
+        createdAt: now,
+        updatedAt: now,
       },
     });
-    
-    // In production: Send invite email with tempPassword
-    // For now, return it in response (NOT SECURE - for testing only!)
-    return {
-      ...user,
-      temporaryPassword: tempPassword, // REMOVE IN PRODUCTION
-      message: 'User created. Send them the temporary password to login.',
+
+    await this.sendInviteEmail(user.email, invitationToken, org.name);
+
+    const response = {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      status: user.status,
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      organizationId: user.organizationId,
+      ...(config.nodeEnv === 'production' ? {} : { invitationToken }),
     };
+
+    return response;
+  }
+
+  private async sendInviteEmail(email: string, token: string, orgName: string) {
+    // Mock: replace with Resend/SendGrid integration.
+    // Intentionally logs token only for non-production environments.
+    if (config.nodeEnv !== 'production') {
+      console.log(`[Invite Email] ${email} invited to ${orgName}. Token: ${token}`);
+    } else {
+      console.log(`[Invite Email] ${email} invited to ${orgName}.`);
+    }
   }
   
   /**

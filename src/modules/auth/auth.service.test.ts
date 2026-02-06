@@ -34,8 +34,8 @@ describe('AuthService', () => {
       expect(user.firstName).toBe(userData.firstName)
       expect(user.lastName).toBe(userData.lastName)
       expect(user.role).toBe(UserRole.WORKER)
-      expect(user.password).not.toBe(userData.password) // Should be hashed
-      expect(user.password).toMatch(/^\$2[aby]\$/) // bcrypt hash pattern
+      expect(user.passwordHash).not.toBe(userData.password) // Should be hashed
+      expect(user.passwordHash).toMatch(/^\$2[aby]\$/) // bcrypt hash pattern
       expect(user.isActive).toBe(true)
       expect(user.createdAt).toBeInstanceOf(Date)
       expect(user.updatedAt).toBeInstanceOf(Date)
@@ -118,7 +118,7 @@ describe('AuthService', () => {
       const user2 = await authService.registerUser(user2Data)
 
       // Assert
-      expect(user1.password).not.toBe(user2.password)
+      expect(user1.passwordHash).not.toBe(user2.passwordHash)
     })
   })
 
@@ -144,7 +144,7 @@ describe('AuthService', () => {
       expect(result.user).toBeDefined()
       expect(result.token).toBeDefined()
       expect(result.user.email).toBe(userData.email)
-      expect(result.user).not.toHaveProperty('password') // Password should be excluded
+      expect(result.user).not.toHaveProperty('passwordHash') // Password should be excluded
       expect(typeof result.token).toBe('string')
       expect(result.token.split('.')).toHaveLength(3) // JWT format
     })

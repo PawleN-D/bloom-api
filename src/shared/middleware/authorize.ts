@@ -87,6 +87,7 @@ const rolePermissions: Record<Role, Permission[]> = {
   
   MANAGER: [
     Permission.READ_USER,
+    Permission.CREATE_USER,
     Permission.CREATE_CLIENT,
     Permission.READ_CLIENT,
     Permission.UPDATE_CLIENT,
@@ -156,5 +157,6 @@ export function canManageUser(actorRole: Role, targetRole: Role): boolean {
   if (actorRole === 'SUPER_ADMIN') return true;
   if (actorRole === 'ORG_OWNER' && targetRole !== 'SUPER_ADMIN') return true;
   if (actorRole === 'ADMIN' && ['MANAGER', 'WORKER'].includes(targetRole)) return true;
+  if (actorRole === 'MANAGER' && targetRole === 'WORKER') return true;
   return false;
 }

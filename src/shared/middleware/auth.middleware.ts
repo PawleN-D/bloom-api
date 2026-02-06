@@ -31,12 +31,23 @@ export async function authMiddleware(
     // Verify token
     const decoded = jwtService.verifyToken(token);
     
+    if (decoded.type && decoded.type !== 'access') {
+      return reply.status(401).send({
+        success: false,
+        error: 'Invalid token type'
+      })
+    }
+
     // Attach user to request
+    const normalizedRole =
+      decoded.role === 'CARE_WORKER' ? 'WORKER' : decoded.role
+
     request.user = {
       id: decoded.userId,
       email: decoded.email,
-      role: decoded.role,
+      role: normalizedRole,
       organizationId: decoded.organizationId ?? null,
+      globalAdmin: decoded.globalAdmin ?? false,
     }
 
   } catch (error) {

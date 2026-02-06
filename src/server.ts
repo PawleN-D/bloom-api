@@ -27,10 +27,7 @@ async function registerPlugins() {
     origin:
       config.nodeEnv === "development"
         ? true
-        : [
-            config.frontendUrl, // likely http://localhost:3000
-            "http://192.168.208.1:3000", // your current network origin
-          ],
+        : config.frontendUrls,
     credentials: true,
   });
 
@@ -72,8 +69,23 @@ async function registerRoutes() {
   const { organizationsRoutes } = await import("./modules/organizations/organizations.routes");
   await server.register(organizationsRoutes, { prefix: "/api/organization" });
 
+  const { organizationsPublicRoutes } = await import("./modules/organizations/organizations.public.routes");
+  await server.register(organizationsPublicRoutes, { prefix: "/api/organizations" });
+
   const { adminRoutes } = await import("./modules/admin/admin.routes");
   await server.register(adminRoutes, { prefix: "/api/admin" });
+
+  const { hqRoutes } = await import("./modules/hq/hq.routes");
+  await server.register(hqRoutes, { prefix: "/api/hq" });
+
+  const { backofficeOrganizationsRoutes } = await import("./modules/backoffice/organizations/organizations.routes");
+  await server.register(backofficeOrganizationsRoutes, { prefix: "/api/backoffice" });
+
+  const { reportsRoutes } = await import("./modules/reports/reports.routes");
+  await server.register(reportsRoutes, { prefix: "/api/reports" });
+
+  const { managerRoutes } = await import("./modules/manager/manager.routes");
+  await server.register(managerRoutes, { prefix: "/api/manager" });
 
 }
 

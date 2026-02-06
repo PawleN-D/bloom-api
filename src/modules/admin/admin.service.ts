@@ -1,4 +1,9 @@
 import { prisma } from '../../shared/database/prisma';
+import {
+  generateUniqueSubdomain,
+  isSubdomainAvailable,
+  isValidSubdomain,
+} from '../../shared/utils/subdomain';
 
 export class AdminService {
   
@@ -96,6 +101,19 @@ export class AdminService {
     if (existing) {
       throw new Error('Organization slug already exists');
     }
+
+    let subdomain = data.subdomain?.trim();
+    if (subdomain) {
+      if (!isValidSubdomain(subdomain)) {
+        throw new Error('Invalid subdomain format');
+      }
+      const available = await isSubdomainAvailable(prisma, subdomain);
+      if (!available) {
+        throw new Error(`Subdomain '${subdomain}' is already taken`);
+      }
+    } else {
+      subdomain = await generateUniqueSubdomain(prisma, data.name);
+    }
     
     const orgId = require('crypto').randomBytes(16).toString('hex');
     
@@ -104,7 +122,7 @@ export class AdminService {
         id: orgId,
         name: data.name,
         slug,
-        subdomain: data.subdomain || null,
+        subdomain,
         logo: data.logo || null,
         primaryColor: data.primaryColor || '#0F766E',
         plan: data.plan || 'STARTER',

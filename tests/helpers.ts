@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto'
 import { prisma } from './setup'
-import { Organization, SubscriptionPlan, UserRole } from '@prisma/client'
+import { Organization, SubscriptionPlan, UserRole, UserStatus } from '@prisma/client'
 
 export async function createOrganization(overrides: Partial<Organization> = {}) {
   const id = overrides.id || randomBytes(16).toString('hex')
@@ -43,7 +43,11 @@ export async function createUser(params: {
     data: {
       id,
       email,
-      password: 'hashedpassword',
+      passwordHash: 'hashedpassword',
+      pinHash: 'hashedpin',
+      status: UserStatus.ACTIVE,
+      invitationToken: null,
+      tokenExpires: null,
       firstName: params.firstName || 'Test',
       lastName: params.lastName || 'User',
       role: params.role || UserRole.WORKER,
