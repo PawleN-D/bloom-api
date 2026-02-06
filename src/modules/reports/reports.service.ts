@@ -339,9 +339,11 @@ export class ReportsService {
         .sort((a, b) => a.version - b.version),
     }));
 
-    const exceptions = taskLogs.filter((log) =>
-      [TaskCompletionStatus.INCOMPLETE, TaskCompletionStatus.REFUSED].includes(log.status)
-    );
+    const exceptionStatuses = new Set<TaskCompletionStatus>([
+      TaskCompletionStatus.INCOMPLETE,
+      TaskCompletionStatus.REFUSED,
+    ]);
+    const exceptions = taskLogs.filter((log) => exceptionStatuses.has(log.status));
 
     const medicationLogs = taskLogs.filter(
       (log) => log.taskCategory === TaskCategory.MEDICATION
@@ -367,13 +369,16 @@ export class ReportsService {
       /hydration|fluids|water/i.test(note.content)
     );
 
+    const managementRoles = new Set<UserRole>([
+      UserRole.MANAGER,
+      UserRole.ADMIN,
+      UserRole.ORG_OWNER,
+    ]);
     const managementAcknowledgements = exceptions.filter((log) => {
       if (log.metadata?.managementAcknowledged === true) {
         return true;
       }
-      return [UserRole.MANAGER, UserRole.ADMIN, UserRole.ORG_OWNER].includes(
-        log.staff.role
-      );
+      return managementRoles.has(log.staff.role);
     });
 
     const chronologicalLog = [

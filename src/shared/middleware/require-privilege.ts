@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../database/prisma';
-import { PRIVILEGED_ROLES } from '../constants/privileged-roles';
+import { isPrivilegedRole } from '../constants/privileged-roles';
 
 async function logSecurityAccess(request: FastifyRequest) {
   const user = request.user;
@@ -42,7 +42,7 @@ export async function requirePrivilege(
     });
   }
 
-  if (!PRIVILEGED_ROLES.includes(user.role)) {
+  if (!isPrivilegedRole(user.role)) {
     return reply.status(403).send({
       error: 'Forbidden',
       message: 'Access denied: Requires Management permissions.',

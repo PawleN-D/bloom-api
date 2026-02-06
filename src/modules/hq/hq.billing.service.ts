@@ -373,12 +373,12 @@ export class HQBillingService {
     organizationId: string,
     prorationCents: number,
     currency: string
-  ) {
+  ): Promise<string | null> {
     if (prorationCents === 0) {
       return null;
     }
 
-    return this.createInvoice(
+    const invoice = await this.createInvoice(
       subscriptionId,
       organizationId,
       [
@@ -391,6 +391,7 @@ export class HQBillingService {
       currency,
       new Date()
     );
+    return invoice.id;
   }
 
   private async createInvoice(
@@ -481,7 +482,6 @@ export class HQBillingService {
           organizationId,
           featureId: feature.id,
           enabled,
-          config: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
