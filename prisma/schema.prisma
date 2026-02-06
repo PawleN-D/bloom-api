@@ -145,6 +145,7 @@ model Organization {
   securityLogs   SecurityLog[]
   subscription   Subscription?
   invoices       Invoice[]
+  discountRedemptions DiscountRedemption[]
   supportTickets SupportTicket[]
   
   @@index([slug])
@@ -222,6 +223,7 @@ model User {
   notes            Note[]
   taskCompletions  TaskCompletion[]
   securityLogs     SecurityLog[]
+  auditAccessLogsManaged AuditAccessLog[] @relation("AuditAccessLogManager")
   supportTicketsCreated SupportTicket[] @relation("SupportTicketCreator")
   supportTicketsAssigned SupportTicket[] @relation("SupportTicketAssignee")
   supportNotes SupportNote[]
@@ -353,7 +355,7 @@ model AuditAccessLog {
 
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   resident       Client            @relation(fields: [residentId], references: [id], onDelete: Restrict)
-  manager        User              @relation(fields: [managerId], references: [id], onDelete: Restrict)
+  manager        User              @relation("AuditAccessLogManager", fields: [managerId], references: [id], onDelete: Restrict)
 
   @@index([organizationId])
   @@index([residentId])
