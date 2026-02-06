@@ -124,7 +124,6 @@ export class HQService {
           organizationId: organization.id,
           featureId: feature.id,
           enabled: true,
-          config: null,
           createdAt: now,
           updatedAt: now,
         })),

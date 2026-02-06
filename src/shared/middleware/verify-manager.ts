@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { UserRole } from '@prisma/client';
+import { isPrivilegedRole } from '../constants/privileged-roles';
 
 /**
  * Manager-only authorization middleware
@@ -18,8 +18,7 @@ export async function verifyManager(
     });
   }
 
-  const allowedRoles = [UserRole.MANAGER, UserRole.ADMIN];
-  if (!allowedRoles.includes(user.role)) {
+  if (!isPrivilegedRole(user.role)) {
     return reply.status(403).send({
       error: 'Forbidden',
       message: 'Manager or Admin role required',

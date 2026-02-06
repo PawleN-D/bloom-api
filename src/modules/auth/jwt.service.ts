@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken'
+import jwt, { SignOptions, Secret } from 'jsonwebtoken'
 import { UserRole } from '@prisma/client'
 
 export interface JWTPayload {
@@ -11,7 +11,7 @@ export interface JWTPayload {
 }
 
 export class JWTService {
-  private secret: string
+  private secret: Secret
 
   constructor() {
     this.secret = process.env.JWT_SECRET || 'default-secret-change-me'
@@ -26,7 +26,9 @@ export class JWTService {
       ...payload,
       type: payload.type || 'access',
     }
-    return jwt.sign(tokenPayload, this.secret, { expiresIn: expiresIn || process.env.JWT_EXPIRES_IN || '15m' })
+    return jwt.sign(tokenPayload, this.secret, {
+      expiresIn: this.resolveExpiresIn(expiresIn),
+    })
   }
 
   generateSessionUnlockToken(payload: JWTPayload): string {
@@ -42,5 +44,10 @@ export class JWTService {
     } catch (error) {
       throw new Error('Invalid token')
     }
+  }
+
+  private resolveExpiresIn(value?: string): SignOptions['expiresIn'] {
+    const resolved = value || process.env.JWT_EXPIRES_IN || '15m'
+    return resolved as SignOptions['expiresIn']
   }
 }
