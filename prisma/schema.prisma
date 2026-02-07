@@ -222,6 +222,7 @@ model User {
   assignments      Assignment[]
   notes            Note[]
   taskCompletions  TaskCompletion[]
+  assignedTasks    Task[] @relation("TaskAssignee")
   securityLogs     SecurityLog[]
   auditAccessLogsManaged AuditAccessLog[] @relation("AuditAccessLogManager")
   supportTicketsCreated SupportTicket[] @relation("SupportTicketCreator")
@@ -298,6 +299,7 @@ model Task {
   category         TaskCategory @default(GENERAL)
   priority         TaskPriority @default(NORMAL)
   clientId         String
+  assignedToId     String?
   isRecurring      Boolean      @default(false)
   dueDate          DateTime?
   createdAt        DateTime     @default(now())
@@ -305,8 +307,10 @@ model Task {
   
   taskCompletions  TaskCompletion[]
   client           Client       @relation(fields: [clientId], references: [id])
+  assignedTo       User?        @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   
   @@index([clientId])
+  @@index([assignedToId])
   @@index([dueDate])
   @@index([organizationId])
   @@map("tasks")

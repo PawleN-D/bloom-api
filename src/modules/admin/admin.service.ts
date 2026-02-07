@@ -1,4 +1,7 @@
+import { randomUUID } from 'crypto';
+import { config } from '../../config/env';
 import { prisma } from '../../shared/database/prisma';
+import { UserStatus } from '@prisma/client';
 import {
   generateUniqueSubdomain,
   isSubdomainAvailable,
@@ -281,6 +284,315 @@ export class AdminService {
       },
     };
   }
+
+
+  /**
+   * List subscriptions with organization context
+   */
+  async listSubscriptions(filters?: any) {
+    const { search, plan, status } = filters || {};
+    const where: any = {};
+
+    if (plan) where.plan = plan;
+    if (status) where.status = status;
+    if (search) {
+      where.organization = {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { slug: { contains: search, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    const [subscriptions, total] = await Promise.all([
+      prisma.subscription.findMany({
+        where,
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              trialEndsAt: true,
+            },
+          },
+          invoices: {
+            orderBy: { issuedAt: 'desc' },
+            take: 1,
+            select: { status: true },
+          },
+        },
+        orderBy: { currentPeriodEnd: 'desc' },
+        take: 100,
+      }),
+      prisma.subscription.count({ where }),
+    ]);
+
+    return {
+      subscriptions,
+      total,
+    };
+  }
+
+
+  /**
+   * List users for an organization
+   */
+  async listOrganizationUsers(orgId: string, filters?: any) {
+    const { search, role, active } = filters || {};
+    const where: any = { organizationId: orgId };
+
+    if (role) where.role = role;
+    if (active !== undefined) where.isActive = active === 'true';
+
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    return prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        isActive: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Create (invite) user for an organization
+   */
+  async createOrganizationUser(orgId: string, data: any) {
+    const organization = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true, name: true, maxUsers: true },
+    });
+
+    if (!organization) {
+      throw new Error('Organization not found');
+    }
+
+    const existing = await prisma.user.findUnique({
+      where: { email: data.email },
+    });
+
+    if (existing) {
+      throw new Error('User with this email already exists');
+    }
+
+    const role = data.role || 'WORKER';
+    if (role === 'SUPER_ADMIN') {
+      throw new Error('SUPER_ADMIN role cannot be assigned to organization users');
+    }
+
+    const activeCount = await prisma.user.count({
+      where: { organizationId: orgId, isActive: true },
+    });
+
+    if (activeCount >= organization.maxUsers) {
+      throw new Error(`Organization has reached maximum users (${organization.maxUsers}).`);
+    }
+
+    const now = new Date();
+    const invitationToken = randomUUID();
+    const tokenExpires = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    const firstName = data.firstName || 'Pending';
+    const lastName = data.lastName || 'User';
+
+    const user = await prisma.user.create({
+      data: {
+        id: require('crypto').randomBytes(16).toString('hex'),
+        email: data.email,
+        passwordHash: null,
+        pinHash: null,
+        invitationToken,
+        tokenExpires,
+        status: UserStatus.PENDING,
+        firstName,
+        lastName,
+        role,
+        organizationId: orgId,
+        isActive: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        status: true,
+        isActive: true,
+        organizationId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (config.nodeEnv !== 'production') {
+      console.log(`[Invite Email] ${user.email} invited to ${organization.name}. Token: ${invitationToken}`);
+    } else {
+      console.log(`[Invite Email] ${user.email} invited to ${organization.name}.`);
+    }
+
+    return {
+      user,
+      ...(config.nodeEnv === 'production' ? {} : { invitationToken }),
+    };
+  }
+
+  /**
+   * Update user profile
+   */
+  async updateOrganizationUser(orgId: string, userId: string, data: any) {
+    const existing = await prisma.user.findFirst({
+      where: { id: userId, organizationId: orgId },
+    });
+
+    if (!existing) {
+      throw new Error('User not found');
+    }
+
+    const updateData: any = { updatedAt: new Date() };
+    if (data.firstName !== undefined) updateData.firstName = data.firstName;
+    if (data.lastName !== undefined) updateData.lastName = data.lastName;
+    if (data.email !== undefined) {
+      const emailTaken = await prisma.user.findFirst({
+        where: { email: data.email, id: { not: userId } },
+      });
+      if (emailTaken) {
+        throw new Error('Email already in use');
+      }
+      updateData.email = data.email;
+    }
+
+    return prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        status: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  /**
+   * Update user role
+   */
+  async updateOrganizationUserRole(orgId: string, userId: string, role: string) {
+    if (role === 'SUPER_ADMIN') {
+      throw new Error('SUPER_ADMIN role cannot be assigned to organization users');
+    }
+
+    const existing = await prisma.user.findFirst({
+      where: { id: userId, organizationId: orgId },
+    });
+
+    if (!existing) {
+      throw new Error('User not found');
+    }
+
+    return prisma.user.update({
+      where: { id: userId },
+      data: { role, updatedAt: new Date() },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        status: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  /**
+   * Deactivate user
+   */
+  async deactivateOrganizationUser(orgId: string, userId: string) {
+    const existing = await prisma.user.findFirst({
+      where: { id: userId, organizationId: orgId },
+    });
+
+    if (!existing) {
+      throw new Error('User not found');
+    }
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isActive: false, updatedAt: new Date() },
+    });
+
+    return { message: 'User deactivated successfully' };
+  }
+
+  /**
+   * Reactivate user
+   */
+  async reactivateOrganizationUser(orgId: string, userId: string) {
+    const organization = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true, maxUsers: true },
+    });
+
+    if (!organization) {
+      throw new Error('Organization not found');
+    }
+
+    const existing = await prisma.user.findFirst({
+      where: { id: userId, organizationId: orgId },
+    });
+
+    if (!existing) {
+      throw new Error('User not found');
+    }
+
+    const activeCount = await prisma.user.count({
+      where: { organizationId: orgId, isActive: true },
+    });
+
+    if (activeCount >= organization.maxUsers) {
+      throw new Error(`Organization has reached maximum users (${organization.maxUsers}).`);
+    }
+
+    return prisma.user.update({
+      where: { id: userId },
+      data: { isActive: true, updatedAt: new Date() },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        status: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
   
   /**
    * List all features
@@ -343,6 +655,57 @@ export class AdminService {
     return {
       organization,
       features,
+    };
+  }
+
+  /**
+   * Set organization feature override (HQ)
+   */
+  async setOrganizationFeature(orgId: string, featureKey: string, enabled: boolean, config?: any) {
+    const organization = await prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+
+    if (!organization) {
+      throw new Error('Organization not found');
+    }
+
+    const feature = await prisma.feature.findUnique({
+      where: { key: featureKey },
+    });
+
+    if (!feature) {
+      throw new Error('Feature not found');
+    }
+
+    const now = new Date();
+    const record = await prisma.organizationFeature.upsert({
+      where: {
+        organizationId_featureId: {
+          organizationId: orgId,
+          featureId: feature.id,
+        },
+      },
+      update: {
+        enabled,
+        config: config ?? null,
+        updatedAt: now,
+      },
+      create: {
+        id: require('crypto').randomBytes(16).toString('hex'),
+        organizationId: orgId,
+        featureId: feature.id,
+        enabled,
+        config: config ?? null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+
+    return {
+      organizationId: orgId,
+      featureKey: feature.key,
+      enabled: record.enabled,
     };
   }
 }

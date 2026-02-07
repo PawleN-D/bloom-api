@@ -55,7 +55,7 @@ export class AuthService {
     // Hash password with bcrypt (10 rounds = ~100ms)
     const hashedPassword = await bcrypt.hash(data.password, 10)
 
-    if (data.role !== 'SUPER_ADMIN' && !data.organizationId) {
+    if (data.role !== 'SUPER_ADMIN' && data.role !== 'ADMIN' && !data.organizationId) {
       throw new Error('Organization required')
     }
 

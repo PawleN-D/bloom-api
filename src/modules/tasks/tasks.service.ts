@@ -24,33 +24,55 @@ interface LogTaskInput {
 
 export class TasksService {
   async getTasks(request: FastifyRequest, filters?: any) {
-    const { clientId, search } = filters || {};
+    const { clientId, search, assignedToId, startDate, endDate } = filters || {};
     const user = request.user;
     if (!user) {
       throw new Error('User required');
     }
 
-    const where = withTenantIsolation(request, {
-      clientId: clientId || undefined,
-    });
-
-    if (!isPrivilegedRole(user.role)) {
-      (where as any).client = {
-        assignments: {
-          some: {
-            userId: user.id,
-            isActive: true,
-          },
-        },
-      };
+    const conditions: any[] = [];
+    if (clientId) {
+      conditions.push({ clientId });
+    }
+    if (assignedToId) {
+      conditions.push({ assignedToId });
+    }
+    if (startDate || endDate) {
+      const dueDate: { gte?: Date; lte?: Date } = {};
+      if (startDate) dueDate.gte = new Date(startDate);
+      if (endDate) dueDate.lte = new Date(endDate);
+      conditions.push({ dueDate });
     }
 
     if (search) {
-      (where as any).OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-      ];
+      conditions.push({
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ],
+      });
     }
+
+    if (!isPrivilegedRole(user.role)) {
+      conditions.push({
+        OR: [
+          { assignedToId: user.id },
+          {
+            assignedToId: null,
+            client: {
+              assignments: {
+                some: {
+                  userId: user.id,
+                  isActive: true,
+                },
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    const where = withTenantIsolation(request, conditions.length ? { AND: conditions } : {});
 
     return prisma.task.findMany({
       where,
@@ -60,6 +82,14 @@ export class TasksService {
             id: true,
             firstName: true,
             lastName: true,
+          },
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true,
           },
         },
         taskCompletions: {
@@ -90,6 +120,14 @@ export class TasksService {
             id: true,
             firstName: true,
             lastName: true,
+          },
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true,
           },
         },
         taskCompletions: {
@@ -130,6 +168,25 @@ export class TasksService {
       throw new Error('Client not found in your organization');
     }
 
+    let assignedToId: string | null = data.assignedToId ?? null;
+    if (assignedToId) {
+      const assignee = await prisma.user.findUnique({
+        where: { id: assignedToId },
+      });
+
+      if (!assignee || assignee.organizationId !== org.id) {
+        throw new Error('Assigned user not found in your organization');
+      }
+
+      if (assignee.role !== 'WORKER') {
+        throw new Error('Assigned user must have WORKER role');
+      }
+
+      if (assignee.isActive === false) {
+        throw new Error('Assigned user is inactive');
+      }
+    }
+
     const taskId = require('crypto').randomBytes(16).toString('hex');
 
     return prisma.task.create({
@@ -142,6 +199,7 @@ export class TasksService {
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
         isRecurring: data.isRecurring || false,
         clientId: data.clientId,
+        assignedToId,
         organizationId: org.id,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -151,6 +209,14 @@ export class TasksService {
           select: {
             firstName: true,
             lastName: true,
+          },
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true,
           },
         },
       },
@@ -174,6 +240,29 @@ export class TasksService {
     if (data.description !== undefined) updateData.description = data.description;
     if (data.category !== undefined) updateData.category = data.category;
     if (data.priority !== undefined) updateData.priority = data.priority;
+    if (data.assignedToId !== undefined) {
+      if (data.assignedToId === null) {
+        updateData.assignedToId = null;
+      } else {
+        const assignee = await prisma.user.findUnique({
+          where: { id: data.assignedToId },
+        });
+
+        if (!assignee || assignee.organizationId !== existing.organizationId) {
+          throw new Error('Assigned user not found in your organization');
+        }
+
+        if (assignee.role !== 'WORKER') {
+          throw new Error('Assigned user must have WORKER role');
+        }
+
+        if (assignee.isActive === false) {
+          throw new Error('Assigned user is inactive');
+        }
+
+        updateData.assignedToId = data.assignedToId;
+      }
+    }
     if (data.dueDate !== undefined) {
       updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
     }
@@ -187,6 +276,14 @@ export class TasksService {
           select: {
             firstName: true,
             lastName: true,
+          },
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true,
           },
         },
       },
