@@ -13,14 +13,17 @@ export async function tasksRoutes(server: FastifyInstance) {
     id: z.string().min(1),
   });
 
-  const listQuerySchema = z.object({
-    clientId: z.string().min(1).optional(),
-    search: z.string().min(1).optional(),
-  }).passthrough();
-
   const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
     message: 'Invalid date',
   });
+
+  const listQuerySchema = z.object({
+    clientId: z.string().min(1).optional(),
+    assignedToId: z.string().min(1).optional(),
+    search: z.string().min(1).optional(),
+    startDate: dateStringSchema.optional(),
+    endDate: dateStringSchema.optional(),
+  }).passthrough();
 
   const dateSchema = z.union([dateStringSchema, z.null()]);
 
@@ -39,6 +42,7 @@ export async function tasksRoutes(server: FastifyInstance) {
     ]).optional(),
     priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).optional(),
     clientId: z.string().min(1),
+    assignedToId: z.string().min(1).nullable().optional(),
     dueDate: dateSchema.optional(),
     isRecurring: z.boolean().optional(),
   }).strict();
@@ -57,6 +61,7 @@ export async function tasksRoutes(server: FastifyInstance) {
       'GENERAL',
     ]).optional(),
     priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).optional(),
+    assignedToId: z.string().min(1).nullable().optional(),
     dueDate: dateSchema.optional(),
     isRecurring: z.boolean().optional(),
   }).strict();

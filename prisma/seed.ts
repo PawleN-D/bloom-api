@@ -25,6 +25,9 @@ async function main() {
 
   const org1Id = 'org_test_1'
   const org2Id = 'org_test_2'
+  const org3Id = 'org_test_3'
+  const org4Id = 'org_test_4'
+  const org5Id = 'org_test_5'
 
   const org1 = await prisma.organization.upsert({
     where: { id: org1Id },
@@ -100,6 +103,118 @@ async function main() {
   })
   console.log('Created org:', org2.name)
 
+
+  const org3 = await prisma.organization.upsert({
+    where: { id: org3Id },
+    update: {
+      name: 'CareWell Dublin',
+      slug: 'carewell-dublin',
+      subdomain: 'carewell',
+      primaryColor: '#0F766E',
+      plan: SubscriptionPlan.PROFESSIONAL,
+      subscriptionStatus: SubscriptionStatus.ACTIVE,
+      billingEmail: 'billing@carewell.ie',
+      maxUsers: 25,
+      maxClients: 150,
+      active: true,
+      suspended: false,
+      trialEndsAt: null,
+      updatedAt: now,
+    },
+    create: {
+      id: org3Id,
+      name: 'CareWell Dublin',
+      slug: 'carewell-dublin',
+      subdomain: 'carewell',
+      primaryColor: '#0F766E',
+      plan: SubscriptionPlan.PROFESSIONAL,
+      subscriptionStatus: SubscriptionStatus.ACTIVE,
+      billingEmail: 'billing@carewell.ie',
+      maxUsers: 25,
+      maxClients: 150,
+      active: true,
+      suspended: false,
+      trialEndsAt: null,
+      createdAt: daysAgo(45),
+      updatedAt: now,
+    },
+  })
+  console.log('Created org:', org3.name)
+
+  const org4 = await prisma.organization.upsert({
+    where: { id: org4Id },
+    update: {
+      name: 'HomeCare Cork',
+      slug: 'homecare-cork',
+      subdomain: 'homecare',
+      primaryColor: '#0F766E',
+      plan: SubscriptionPlan.STARTER,
+      subscriptionStatus: SubscriptionStatus.ACTIVE,
+      billingEmail: 'billing@homecare.ie',
+      maxUsers: 12,
+      maxClients: 60,
+      active: true,
+      suspended: false,
+      trialEndsAt: daysFromNow(10),
+      updatedAt: now,
+    },
+    create: {
+      id: org4Id,
+      name: 'HomeCare Cork',
+      slug: 'homecare-cork',
+      subdomain: 'homecare',
+      primaryColor: '#0F766E',
+      plan: SubscriptionPlan.STARTER,
+      subscriptionStatus: SubscriptionStatus.ACTIVE,
+      billingEmail: 'billing@homecare.ie',
+      maxUsers: 12,
+      maxClients: 60,
+      active: true,
+      suspended: false,
+      trialEndsAt: daysFromNow(10),
+      createdAt: daysAgo(20),
+      updatedAt: now,
+    },
+  })
+  console.log('Created org:', org4.name)
+
+  const org5 = await prisma.organization.upsert({
+    where: { id: org5Id },
+    update: {
+      name: 'Aurora Living',
+      slug: 'aurora-living',
+      subdomain: 'aurora',
+      primaryColor: '#0F172A',
+      plan: SubscriptionPlan.ENTERPRISE,
+      subscriptionStatus: SubscriptionStatus.PAST_DUE,
+      billingEmail: 'billing@aurora.com',
+      maxUsers: 60,
+      maxClients: 300,
+      active: false,
+      suspended: true,
+      trialEndsAt: null,
+      updatedAt: now,
+    },
+    create: {
+      id: org5Id,
+      name: 'Aurora Living',
+      slug: 'aurora-living',
+      subdomain: 'aurora',
+      primaryColor: '#0F172A',
+      plan: SubscriptionPlan.ENTERPRISE,
+      subscriptionStatus: SubscriptionStatus.PAST_DUE,
+      billingEmail: 'billing@aurora.com',
+      maxUsers: 60,
+      maxClients: 300,
+      active: false,
+      suspended: true,
+      trialEndsAt: null,
+      createdAt: daysAgo(120),
+      updatedAt: now,
+    },
+  })
+  console.log('Created org:', org5.name)
+
   const billingPeriodEnd = daysFromNow(DEFAULT_BILLING_CYCLE_DAYS)
 
   await prisma.subscription.upsert({
@@ -150,6 +265,89 @@ async function main() {
       currentPeriodEnd: billingPeriodEnd,
       cancelAtPeriodEnd: false,
       createdAt: now,
+      updatedAt: now,
+    },
+  })
+
+
+  await prisma.subscription.upsert({
+    where: { organizationId: org3.id },
+    update: {
+      plan: org3.plan,
+      status: SubscriptionStatus.ACTIVE,
+      priceCents: PLAN_CATALOG[org3.plan].priceCents,
+      currency: PLAN_CATALOG[org3.plan].currency,
+      currentPeriodStart: daysAgo(15),
+      currentPeriodEnd: billingPeriodEnd,
+      updatedAt: now,
+    },
+    create: {
+      id: 'sub_org3',
+      organizationId: org3.id,
+      plan: org3.plan,
+      status: SubscriptionStatus.ACTIVE,
+      priceCents: PLAN_CATALOG[org3.plan].priceCents,
+      currency: PLAN_CATALOG[org3.plan].currency,
+      currentPeriodStart: daysAgo(15),
+      currentPeriodEnd: billingPeriodEnd,
+      cancelAtPeriodEnd: false,
+      createdAt: daysAgo(90),
+      updatedAt: now,
+    },
+  })
+
+  await prisma.subscription.upsert({
+    where: { organizationId: org4.id },
+    update: {
+      plan: org4.plan,
+      status: SubscriptionStatus.ACTIVE,
+      priceCents: PLAN_CATALOG[org4.plan].priceCents,
+      currency: PLAN_CATALOG[org4.plan].currency,
+      currentPeriodStart: daysAgo(25),
+      currentPeriodEnd: billingPeriodEnd,
+      cancelRequestedAt: daysAgo(10),
+      updatedAt: now,
+    },
+    create: {
+      id: 'sub_org4',
+      organizationId: org4.id,
+      plan: org4.plan,
+      status: SubscriptionStatus.ACTIVE,
+      priceCents: PLAN_CATALOG[org4.plan].priceCents,
+      currency: PLAN_CATALOG[org4.plan].currency,
+      currentPeriodStart: daysAgo(25),
+      currentPeriodEnd: billingPeriodEnd,
+      cancelAtPeriodEnd: false,
+      cancelRequestedAt: daysAgo(10),
+      createdAt: daysAgo(90),
+      updatedAt: now,
+    },
+  })
+
+  await prisma.subscription.upsert({
+    where: { organizationId: org5.id },
+    update: {
+      plan: org5.plan,
+      status: SubscriptionStatus.PAST_DUE,
+      priceCents: PLAN_CATALOG[org5.plan].priceCents,
+      currency: PLAN_CATALOG[org5.plan].currency,
+      currentPeriodStart: daysAgo(45),
+      currentPeriodEnd: billingPeriodEnd,
+      cancelRequestedAt: daysAgo(5),
+      updatedAt: now,
+    },
+    create: {
+      id: 'sub_org5',
+      organizationId: org5.id,
+      plan: org5.plan,
+      status: SubscriptionStatus.PAST_DUE,
+      priceCents: PLAN_CATALOG[org5.plan].priceCents,
+      currency: PLAN_CATALOG[org5.plan].currency,
+      currentPeriodStart: daysAgo(45),
+      currentPeriodEnd: billingPeriodEnd,
+      cancelAtPeriodEnd: false,
+      cancelRequestedAt: daysAgo(5),
+      createdAt: daysAgo(120),
       updatedAt: now,
     },
   })
@@ -560,6 +758,84 @@ async function main() {
     usersByEmail[user.email] = record
   }
   console.log('Created users')
+
+
+  const securityLogs = [
+    {
+      id: 'security_log_org1_plan',
+      organizationId: org1.id,
+      userId: usersByEmail['admin1@org1.com'].id,
+      action: 'PLAN_UPGRADED',
+      metadata: { from: 'STARTER', to: 'PROFESSIONAL' },
+      statusCode: 200,
+      ipAddress: '10.10.1.10',
+      userAgent: 'Seeded Chrome',
+      createdAt: hoursAgo(6),
+    },
+    {
+      id: 'security_log_org2_onboard',
+      organizationId: org2.id,
+      userId: usersByEmail['owner2@org2.com'].id,
+      action: 'ORG_ONBOARDED',
+      metadata: { channel: 'HQ' },
+      statusCode: 201,
+      ipAddress: '10.10.2.20',
+      userAgent: 'Seeded Chrome',
+      createdAt: hoursAgo(12),
+    },
+    {
+      id: 'security_log_org3_support',
+      organizationId: org3.id,
+      userId: usersByEmail['superadmin@bloom.com'].id,
+      action: 'SUPPORT_TICKET_RESOLVED',
+      metadata: { ticket: 'HQ-1042' },
+      statusCode: 200,
+      ipAddress: '10.10.3.15',
+      userAgent: 'Seeded Safari',
+      createdAt: hoursAgo(3),
+    },
+    {
+      id: 'security_log_org4_trial',
+      organizationId: org4.id,
+      userId: usersByEmail['superadmin@bloom.com'].id,
+      action: 'TRIAL_STARTED',
+      metadata: { trialDays: 14 },
+      statusCode: 200,
+      ipAddress: '10.10.4.15',
+      userAgent: 'Seeded Edge',
+      createdAt: hoursAgo(24),
+    },
+    {
+      id: 'security_log_org5_suspended',
+      organizationId: org5.id,
+      userId: usersByEmail['superadmin@bloom.com'].id,
+      action: 'ORG_SUSPENDED',
+      metadata: { reason: 'Billing past due' },
+      statusCode: 200,
+      ipAddress: '10.10.5.22',
+      userAgent: 'Seeded Chrome',
+      createdAt: hoursAgo(18),
+    },
+  ]
+
+  for (const log of securityLogs) {
+    await prisma.securityLog.upsert({
+      where: { id: log.id },
+      update: {
+        organizationId: log.organizationId,
+        userId: log.userId,
+        action: log.action,
+        metadata: log.metadata,
+        statusCode: log.statusCode,
+        ipAddress: log.ipAddress,
+        userAgent: log.userAgent,
+        createdAt: log.createdAt,
+      },
+      create: log,
+    })
+  }
+  console.log('Created security logs')
+
 
   const client1 = await prisma.client.upsert({
     where: { id: 'org1_client_1' },

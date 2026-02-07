@@ -164,34 +164,36 @@ export class OrganizationsService {
    */
   async getOrganizationFeatures(request: FastifyRequest) {
     const org = request.organization;
-    
+
     if (!org) {
       throw new Error('Organization not found');
     }
-    
-    // Get all features available for this organization's plan
-    const allFeatures = await prisma.feature.findMany({
-      where: {
-        OR: [
-          { availableInPlans: { has: org.plan } },
-          { defaultEnabled: true },
-        ],
-      },
-      orderBy: { category: 'asc' },
-    });
-    
-    // Get enabled features for this organization
+
     const orgFeatures = await prisma.organizationFeature.findMany({
       where: { organizationId: org.id },
       include: {
         feature: true,
       },
     });
-    
-    // Build response with feature status
-    const features = allFeatures.map(feature => {
-      const orgFeature = orgFeatures.find(of => of.featureId === feature.id);
-      
+
+    const overrideFeatureIds = orgFeatures
+      .filter((item) => item.enabled)
+      .map((item) => item.featureId);
+
+    const allFeatures = await prisma.feature.findMany({
+      where: {
+        OR: [
+          { availableInPlans: { has: org.plan } },
+          { defaultEnabled: true },
+          { id: { in: overrideFeatureIds } },
+        ],
+      },
+      orderBy: { category: 'asc' },
+    });
+
+    const features = allFeatures.map((feature) => {
+      const orgFeature = orgFeatures.find((of) => of.featureId === feature.id);
+
       return {
         id: feature.id,
         key: feature.key,
@@ -205,7 +207,7 @@ export class OrganizationsService {
         config: orgFeature?.config || null,
       };
     });
-    
+
     return features;
   }
   

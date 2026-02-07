@@ -2,7 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 
 /**
  * Bloom HQ admin middleware
- * Requires JWT with globalAdmin=true.
+ * Requires SUPER_ADMIN or HQ ADMIN (ADMIN with no organization).
  */
 export async function isBloomHQAdmin(
   request: FastifyRequest,
@@ -17,7 +17,9 @@ export async function isBloomHQAdmin(
     });
   }
 
-  if (!user.globalAdmin) {
+  const isHqAdmin = user.role === 'ADMIN' && !user.organizationId;
+
+  if (!user.globalAdmin && !isHqAdmin) {
     return reply.status(403).send({
       error: 'Forbidden',
       message: 'Bloom HQ admin access required',

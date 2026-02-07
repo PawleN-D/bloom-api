@@ -12,6 +12,7 @@ interface CreateTaskBody {
   category?: TaskCategory
   priority?: TaskPriority
   clientId: string
+  assignedToId?: string | null
   isRecurring?: boolean
   dueDate?: string
 }

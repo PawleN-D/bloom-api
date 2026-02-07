@@ -43,6 +43,13 @@ export async function adminRoutes(server: FastifyInstance) {
     suspended: z.enum(['true', 'false']).optional(),
   }).passthrough();
 
+  const listSubscriptionsQuerySchema = z.object({
+    search: z.string().min(1).optional(),
+    plan: z.enum(['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE']).optional(),
+    status: z.enum(['ACTIVE', 'PAST_DUE', 'SUSPENDED']).optional(),
+  }).passthrough();
+
+
   const createOrgSchema = z.object({
     name: z.string().min(1),
     slug: z.string().min(1).optional(),
@@ -79,6 +86,36 @@ export async function adminRoutes(server: FastifyInstance) {
     comingSoon: z.boolean().optional(),
     defaultEnabled: z.boolean().optional(),
   }).strict();
+
+  const organizationUsersQuerySchema = z.object({
+    search: z.string().min(1).optional(),
+    role: z.enum(['WORKER', 'ADMIN', 'MANAGER', 'ORG_OWNER']).optional(),
+    active: z.enum(['true', 'false']).optional(),
+  }).passthrough();
+
+  const createOrganizationUserSchema = z.object({
+    email: z.string().email(),
+    role: z.enum(['WORKER', 'ADMIN', 'MANAGER', 'ORG_OWNER']).optional(),
+    firstName: z.string().min(1).optional(),
+    lastName: z.string().min(1).optional(),
+  }).strict();
+
+  const updateOrganizationUserSchema = z.object({
+    email: z.string().email().optional(),
+    firstName: z.string().min(1).optional(),
+    lastName: z.string().min(1).optional(),
+  }).strict();
+
+  const updateOrganizationUserRoleSchema = z.object({
+    role: z.enum(['WORKER', 'ADMIN', 'MANAGER', 'ORG_OWNER']),
+  }).strict();
+
+
+  const featureOverrideSchema = z.object({
+    enabled: z.boolean(),
+    config: z.record(z.any()).optional(),
+  }).strict();
+
   
   // Middleware to ensure SUPER_ADMIN only
   const requireSuperAdmin = async (request: any, reply: any) => {
@@ -89,6 +126,29 @@ export async function adminRoutes(server: FastifyInstance) {
       });
     }
   };
+
+  // Middleware to ensure HQ admin (SUPER_ADMIN or HQ ADMIN)
+  const requireHQAdmin = async (request: any, reply: any) => {
+    const user = request.user;
+
+    if (!user) {
+      return reply.status(401).send({
+        error: 'Unauthorized',
+        message: 'Authentication required',
+      });
+    }
+
+    const isSuperAdmin = user.role === 'SUPER_ADMIN';
+    const isHqAdmin = user.role === 'ADMIN' && !user.organizationId;
+
+    if (!isSuperAdmin && !isHqAdmin) {
+      return reply.status(403).send({
+        error: 'Forbidden',
+        message: 'HQ admin access required',
+      });
+    }
+  };
+
 
   // POST /api/admin/invite - Invite staff (manager+)
   server.post('/invite', {
@@ -116,7 +176,7 @@ export async function adminRoutes(server: FastifyInstance) {
   
   // GET /api/admin/organizations - List all organizations
   server.get('/organizations', {
-    preHandler: [authMiddleware, requireSuperAdmin]
+    preHandler: [authMiddleware, requireHQAdmin]
   }, async (request, reply) => {
     try {
       const query = validateZod(listOrgsQuerySchema, request.query, reply);
@@ -130,7 +190,7 @@ export async function adminRoutes(server: FastifyInstance) {
   
   // GET /api/admin/organizations/:id - Get organization details
   server.get('/organizations/:id', {
-    preHandler: [authMiddleware, requireSuperAdmin]
+    preHandler: [authMiddleware, requireHQAdmin]
   }, async (request, reply) => {
     try {
       const params = validateZod(idParamSchema, request.params, reply);
@@ -203,10 +263,120 @@ export async function adminRoutes(server: FastifyInstance) {
       return reply.status(status).send({ error: error.message });
     }
   });
+
+  // GET /api/admin/organizations/:id/users - List org users
+  server.get('/organizations/:id/users', {
+    preHandler: [authMiddleware, requireHQAdmin]
+  }, async (request, reply) => {
+    try {
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const query = validateZod(organizationUsersQuerySchema, request.query, reply);
+      if (!query) return;
+      const users = await adminService.listOrganizationUsers(params.id, query);
+      return reply.send({ data: users });
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
+    }
+  });
+
+  // POST /api/admin/organizations/:id/users - Invite user
+  server.post('/organizations/:id/users', {
+    preHandler: [authMiddleware, requireHQAdmin]
+  }, async (request, reply) => {
+    try {
+      const params = validateZod(idParamSchema, request.params, reply);
+      if (!params) return;
+      const body = validateZod(createOrganizationUserSchema, request.body, reply);
+      if (!body) return;
+      const result = await adminService.createOrganizationUser(params.id, body);
+      return reply.status(201).send({ data: result });
+    } catch (error: any) {
+      const status = error.message === 'Organization not found' || error.message === 'User with this email already exists' ? 409 : 500;
+      return reply.status(status).send({ error: error.message });
+    }
+  });
+
+  // PUT /api/admin/organizations/:id/users/:userId - Update user
+  server.put('/organizations/:id/users/:userId', {
+    preHandler: [authMiddleware, requireHQAdmin]
+  }, async (request, reply) => {
+    try {
+      const params = validateZod(z.object({
+        id: z.string().min(1),
+        userId: z.string().min(1),
+      }), request.params, reply);
+      if (!params) return;
+      const body = validateZod(updateOrganizationUserSchema, request.body, reply);
+      if (!body) return;
+      const user = await adminService.updateOrganizationUser(params.id, params.userId, body);
+      return reply.send({ data: user });
+    } catch (error: any) {
+      const status = error.message.includes('not found') ? 404 : 500;
+      return reply.status(status).send({ error: error.message });
+    }
+  });
+
+  // PUT /api/admin/organizations/:id/users/:userId/role - Update role
+  server.put('/organizations/:id/users/:userId/role', {
+    preHandler: [authMiddleware, requireHQAdmin]
+  }, async (request, reply) => {
+    try {
+      const params = validateZod(z.object({
+        id: z.string().min(1),
+        userId: z.string().min(1),
+      }), request.params, reply);
+      if (!params) return;
+      const body = validateZod(updateOrganizationUserRoleSchema, request.body, reply);
+      if (!body) return;
+      const user = await adminService.updateOrganizationUserRole(params.id, params.userId, body.role);
+      return reply.send({ data: user });
+    } catch (error: any) {
+      const status = error.message.includes('not found') ? 404 : 500;
+      return reply.status(status).send({ error: error.message });
+    }
+  });
+
+  // DELETE /api/admin/organizations/:id/users/:userId - Deactivate user
+  server.delete('/organizations/:id/users/:userId', {
+    preHandler: [authMiddleware, requireHQAdmin]
+  }, async (request, reply) => {
+    try {
+      const params = validateZod(z.object({
+        id: z.string().min(1),
+        userId: z.string().min(1),
+      }), request.params, reply);
+      if (!params) return;
+      const result = await adminService.deactivateOrganizationUser(params.id, params.userId);
+      return reply.send(result);
+    } catch (error: any) {
+      const status = error.message.includes('not found') ? 404 : 500;
+      return reply.status(status).send({ error: error.message });
+    }
+  });
+
+  // POST /api/admin/organizations/:id/users/:userId/reactivate - Reactivate user
+  server.post('/organizations/:id/users/:userId/reactivate', {
+    preHandler: [authMiddleware, requireHQAdmin]
+  }, async (request, reply) => {
+    try {
+      const params = validateZod(z.object({
+        id: z.string().min(1),
+        userId: z.string().min(1),
+      }), request.params, reply);
+      if (!params) return;
+      const user = await adminService.reactivateOrganizationUser(params.id, params.userId);
+      return reply.send({ data: user });
+    } catch (error: any) {
+      const status = error.message.includes('not found') ? 404 : 500;
+      return reply.status(status).send({ error: error.message });
+    }
+  });
+
   
   // GET /api/admin/stats - Platform statistics
   server.get('/stats', {
-    preHandler: [authMiddleware, requireSuperAdmin]
+    preHandler: [authMiddleware, requireHQAdmin]
   }, async (_request, reply) => {
     try {
       const stats = await adminService.getPlatformStats();
@@ -215,10 +385,24 @@ export async function adminRoutes(server: FastifyInstance) {
       return reply.status(500).send({ error: error.message });
     }
   });
-  
+
+  // GET /api/admin/subscriptions - List all subscriptions
+  server.get('/subscriptions', {
+    preHandler: [authMiddleware, requireHQAdmin]
+  }, async (request, reply) => {
+    try {
+      const query = validateZod(listSubscriptionsQuerySchema, request.query, reply);
+      if (!query) return;
+      const result = await adminService.listSubscriptions(query);
+      return reply.send({ data: result });
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
+    }
+  });
+
   // GET /api/admin/features - List all features
   server.get('/features', {
-    preHandler: [authMiddleware, requireSuperAdmin]
+    preHandler: [authMiddleware, requireHQAdmin]
   }, async (_request, reply) => {
     try {
       const features = await adminService.listFeatures();
@@ -230,7 +414,7 @@ export async function adminRoutes(server: FastifyInstance) {
 
   // GET /api/admin/organizations/:id/features - Org features
   server.get('/organizations/:id/features', {
-    preHandler: [authMiddleware, requireSuperAdmin]
+    preHandler: [authMiddleware, requireHQAdmin]
   }, async (request, reply) => {
     try {
       const params = validateZod(idParamSchema, request.params, reply);
@@ -242,7 +426,27 @@ export async function adminRoutes(server: FastifyInstance) {
       return reply.status(status).send({ error: error.message });
     }
   });
-  
+
+  // POST /api/admin/organizations/:id/features/:key - Set org feature override
+  server.post('/organizations/:id/features/:key', {
+    preHandler: [authMiddleware, requireSuperAdmin]
+  }, async (request, reply) => {
+    try {
+      const params = validateZod(z.object({
+        id: z.string().min(1),
+        key: z.string().min(1),
+      }), request.params, reply);
+      if (!params) return;
+      const body = validateZod(featureOverrideSchema, request.body, reply);
+      if (!body) return;
+      const result = await adminService.setOrganizationFeature(params.id, params.key, body.enabled, body.config);
+      return reply.send({ data: result });
+    } catch (error: any) {
+      const status = error.message === 'Organization not found' || error.message === 'Feature not found' ? 404 : 500;
+      return reply.status(status).send({ error: error.message });
+    }
+  });
+
   // POST /api/admin/features - Create new feature
   server.post('/features', {
     preHandler: [authMiddleware, requireSuperAdmin]
