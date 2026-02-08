@@ -10,6 +10,7 @@ interface CompleteTaskInput {
   refusalReason?: string;
   signatureSvg?: string;
   initials?: string;
+  metadata?: Record<string, any>;
   device_info?: string;
 }
 
