@@ -1,7 +1,15 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { JWTService } from '../../modules/auth/jwt.service'
+import { prisma } from '../database/prisma'
 
 const jwtService = new JWTService()
+
+const normalizeTenantHeader = (value: string | string[] | undefined) => {
+  if (!value) return null
+  const raw = Array.isArray(value) ? value[0] : value
+  const normalized = String(raw || '').trim().toLowerCase()
+  return normalized || null
+}
 
 export async function authMiddleware(
   request: FastifyRequest,
@@ -36,6 +44,22 @@ export async function authMiddleware(
         success: false,
         error: 'Invalid token type'
       })
+    }
+
+    const tenantHeader = normalizeTenantHeader(request.headers['x-tenant'])
+    const isGlobalAdmin = decoded.globalAdmin ?? decoded.role === 'SUPER_ADMIN'
+    if (tenantHeader && decoded.organizationId && !isGlobalAdmin) {
+      const org = await prisma.organization.findUnique({
+        where: { subdomain: tenantHeader },
+        select: { id: true },
+      })
+
+      if (!org || org.id !== decoded.organizationId) {
+        return reply.status(403).send({
+          success: false,
+          error: 'Tenant mismatch',
+        })
+      }
     }
 
     // Attach user to request
