@@ -467,6 +467,8 @@ export class ReportsService {
       })}`;
 
     let pageNumber = 1;
+    const contentStartY = 80;
+
     const drawHeader = () => {
       doc.rect(0, 0, doc.page.width, 60).fill(brand.primary);
       doc
@@ -479,12 +481,13 @@ export class ReportsService {
         .font('Helvetica')
         .text('Compliance Audit Report', 50, 40, { align: 'left' });
       doc.fillColor(brand.text);
-      doc.moveDown();
-      doc.y = 80;
+      doc.y = contentStartY;
     };
 
     const drawFooter = () => {
       const y = doc.page.height - 40;
+      const prevX = doc.x;
+      const prevY = doc.y;
       doc
         .strokeColor(brand.light)
         .moveTo(50, y)
@@ -501,6 +504,8 @@ export class ReportsService {
         .fontSize(9)
         .text(`Page ${pageNumber}`, doc.page.width - 100, y + 10, { align: 'right' });
       doc.fillColor(brand.text);
+      doc.x = prevX;
+      doc.y = prevY;
     };
 
     drawHeader();
