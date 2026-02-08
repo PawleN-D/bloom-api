@@ -6,21 +6,34 @@ import { isPrivilegedRole } from '../../shared/constants/privileged-roles';
 
 interface CompleteTaskInput {
   notes?: string;
-  status?: TaskCompletionStatus;
+  status?: TaskCompletionStatus | 'COMPLETED';
   refusalReason?: string;
   signatureSvg?: string;
   initials?: string;
+  device_info?: string;
 }
 
 interface LogTaskInput {
   taskId: string;
-  status?: TaskCompletionStatus;
+  status?: TaskCompletionStatus | 'COMPLETED';
   notes?: string;
   refusalReason?: string;
   metadata?: Record<string, any>;
+  device_info?: string;
   originalLogId?: string;
   editReason?: string;
 }
+
+const normalizeCompletionStatus = (
+  status?: TaskCompletionStatus | 'COMPLETED' | string | null
+): TaskCompletionStatus => {
+  if (!status) return TaskCompletionStatus.COMPLETE;
+  if (status === 'COMPLETED') return TaskCompletionStatus.COMPLETE;
+  if (status === 'COMPLETE' || status === 'INCOMPLETE' || status === 'REFUSED') {
+    return status as TaskCompletionStatus;
+  }
+  return TaskCompletionStatus.COMPLETE;
+};
 
 export class TasksService {
   async getTasks(request: FastifyRequest, filters?: any) {
@@ -318,7 +331,7 @@ export class TasksService {
       throw new Error('Task not found');
     }
 
-    const status = input.status || TaskCompletionStatus.COMPLETE;
+    const status = normalizeCompletionStatus(input.status);
 
     if (status === TaskCompletionStatus.INCOMPLETE || status === TaskCompletionStatus.REFUSED) {
       if (!input.refusalReason) {
@@ -335,6 +348,12 @@ export class TasksService {
     const criticalAlertFlagged =
       task.category === 'MEDICATION' && status === TaskCompletionStatus.REFUSED;
 
+    const deviceInfo =
+      input.device_info ||
+      (typeof input.metadata?.device === 'string' ? input.metadata.device : null) ||
+      (request.headers['user-agent'] as string) ||
+      null;
+
     const completion = await prisma.taskCompletion.create({
       data: {
         id: completionId,
@@ -349,7 +368,7 @@ export class TasksService {
         editReason: null,
         signatureSvg: input.signatureSvg || null,
         initials: input.initials || null,
-        deviceInfo: (request.headers['user-agent'] as string) || null,
+        deviceInfo,
         ipAddress,
         criticalAlertFlagged,
         createdAt: new Date(),
@@ -397,7 +416,7 @@ export class TasksService {
       throw new Error('Task not found');
     }
 
-    const status = input.status || TaskCompletionStatus.COMPLETE;
+    const status = normalizeCompletionStatus(input.status);
 
     if (status === TaskCompletionStatus.INCOMPLETE || status === TaskCompletionStatus.REFUSED) {
       if (!input.refusalReason) {
@@ -439,6 +458,11 @@ export class TasksService {
 
     const now = new Date();
 
+    const deviceInfo =
+      input.device_info ||
+      (request.headers['user-agent'] as string) ||
+      null;
+
     const completion = await prisma.taskCompletion.create({
       data: {
         id: completionId,
@@ -454,7 +478,7 @@ export class TasksService {
         metadata: input.metadata ?? undefined,
         signatureSvg: null,
         initials: null,
-        deviceInfo: (request.headers['user-agent'] as string) || null,
+        deviceInfo,
         ipAddress,
         criticalAlertFlagged,
         createdAt: now,

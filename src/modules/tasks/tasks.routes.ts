@@ -66,12 +66,15 @@ export async function tasksRoutes(server: FastifyInstance) {
     isRecurring: z.boolean().optional(),
   }).strict();
 
+  const completionStatusSchema = z.enum(['COMPLETE', 'COMPLETED', 'INCOMPLETE', 'REFUSED']);
+
   const completeTaskSchema = z.object({
     notes: z.string().optional(),
-    status: z.enum(['COMPLETE', 'INCOMPLETE', 'REFUSED']).optional(),
+    status: completionStatusSchema.optional(),
     refusalReason: z.string().optional(),
     signatureSvg: z.string().optional(),
     initials: z.string().optional(),
+    device_info: z.string().optional(),
   }).strict().refine((data) => {
     if (data.status === 'INCOMPLETE' || data.status === 'REFUSED') {
       return Boolean(data.refusalReason);
@@ -89,10 +92,11 @@ export async function tasksRoutes(server: FastifyInstance) {
   }).strict();
   const logSchema = z.object({
     taskId: z.string().min(1),
-    status: z.enum(['COMPLETE', 'INCOMPLETE', 'REFUSED']).optional(),
+    status: completionStatusSchema.optional(),
     notes: z.string().optional(),
     refusalReason: z.string().optional(),
     metadata: z.record(z.any()).optional(),
+    device_info: z.string().optional(),
     originalLogId: z.string().optional(),
     editReason: z.string().optional(),
   }).refine((data) => {
@@ -310,11 +314,12 @@ export async function tasksRoutes(server: FastifyInstance) {
           notes: { type: 'string' },
           status: {
             type: 'string',
-            enum: ['COMPLETE', 'INCOMPLETE', 'REFUSED'],
+            enum: ['COMPLETE', 'COMPLETED', 'INCOMPLETE', 'REFUSED'],
           },
           refusalReason: { type: 'string' },
           signatureSvg: { type: 'string' },
           initials: { type: 'string' },
+          device_info: { type: 'string' },
         },
       },
     },
@@ -343,10 +348,11 @@ export async function tasksRoutes(server: FastifyInstance) {
         required: ['taskId'],
         properties: {
           taskId: { type: 'string' },
-          status: { type: 'string', enum: ['COMPLETE', 'INCOMPLETE', 'REFUSED'] },
+          status: { type: 'string', enum: ['COMPLETE', 'COMPLETED', 'INCOMPLETE', 'REFUSED'] },
           notes: { type: 'string' },
           refusalReason: { type: 'string' },
           metadata: { type: 'object', additionalProperties: true },
+          device_info: { type: 'string' },
           originalLogId: { type: 'string' },
           editReason: { type: 'string' },
         },
