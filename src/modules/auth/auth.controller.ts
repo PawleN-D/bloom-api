@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import { AuthService } from './auth.service'
 import { UserRole } from '@prisma/client'
 import { z } from 'zod'
+import { prisma } from '../../shared/database/prisma'
 
 const authService = new AuthService()
 
@@ -28,6 +29,13 @@ const setupSchema = z.object({
 const verifyPinSchema = z.object({
   pin: z.string().regex(/^\d{4}$/),
 })
+
+const normalizeTenantHeader = (value: string | string[] | undefined) => {
+  if (!value) return null
+  const raw = Array.isArray(value) ? value[0] : value
+  const normalized = String(raw || '').trim().toLowerCase()
+  return normalized || null
+}
 
 export async function register(
   request: FastifyRequest,
@@ -94,6 +102,30 @@ export async function login(
     const { email, password } = parsed.data
 
     const result = await authService.login(email, password)
+    const tenantHeader = normalizeTenantHeader(request.headers['x-tenant'])
+    const requiresTenant =
+      Boolean(result.user.organizationId) && result.user.role !== 'SUPER_ADMIN'
+
+    if (requiresTenant && !tenantHeader) {
+      return reply.status(400).send({
+        success: false,
+        error: 'Tenant header required',
+      })
+    }
+
+    if (tenantHeader && result.user.organizationId) {
+      const org = await prisma.organization.findUnique({
+        where: { subdomain: tenantHeader },
+        select: { id: true },
+      })
+
+      if (!org || org.id !== result.user.organizationId) {
+        return reply.status(403).send({
+          success: false,
+          error: 'Tenant mismatch',
+        })
+      }
+    }
 
     return reply.status(200).send({
       success: true,
@@ -157,6 +189,32 @@ export async function setupAccount(
     }
 
     const { token, password, pin } = parsed.data
+    const tenantHeader = normalizeTenantHeader(request.headers['x-tenant'])
+    const invited = await prisma.user.findFirst({
+      where: { invitationToken: token },
+      select: { organizationId: true },
+    })
+
+    if (invited?.organizationId && !tenantHeader) {
+      return reply.status(400).send({
+        success: false,
+        error: 'Tenant header required',
+      })
+    }
+
+    if (tenantHeader && invited?.organizationId) {
+      const org = await prisma.organization.findUnique({
+        where: { subdomain: tenantHeader },
+        select: { id: true },
+      })
+
+      if (!org || org.id !== invited.organizationId) {
+        return reply.status(403).send({
+          success: false,
+          error: 'Tenant mismatch',
+        })
+      }
+    }
     const result = await authService.setupAccount(token, password, pin)
 
     return reply.status(200).send({
