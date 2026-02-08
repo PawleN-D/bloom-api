@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { config } from '../../config/env';
 import { prisma } from '../../shared/database/prisma';
-import { UserStatus } from '@prisma/client';
+import { UserRole, UserStatus } from '@prisma/client';
 import {
   generateUniqueSubdomain,
   isSubdomainAvailable,
@@ -498,9 +498,19 @@ export class AdminService {
   /**
    * Update user role
    */
-  async updateOrganizationUserRole(orgId: string, userId: string, role: string) {
+  async updateOrganizationUserRole(orgId: string, userId: string, role: UserRole) {
     if (role === 'SUPER_ADMIN') {
       throw new Error('SUPER_ADMIN role cannot be assigned to organization users');
+    }
+
+    const allowedRoles = new Set<UserRole>([
+      UserRole.WORKER,
+      UserRole.ADMIN,
+      UserRole.MANAGER,
+      UserRole.ORG_OWNER,
+    ]);
+    if (!allowedRoles.has(role)) {
+      throw new Error('Invalid role');
     }
 
     const existing = await prisma.user.findFirst({
