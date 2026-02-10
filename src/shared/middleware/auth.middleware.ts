@@ -16,7 +16,6 @@ export async function authMiddleware(
   reply: FastifyReply
 ) {
   try {
-    // Get token from Authorization header
     const authHeader = request.headers.authorization
     
     if (!authHeader) {
@@ -26,7 +25,6 @@ export async function authMiddleware(
       })
     }
 
-    // Extract token (format: "Bearer TOKEN")
     const token = authHeader.replace('Bearer ', '')
     
     if (!token) {
@@ -36,7 +34,6 @@ export async function authMiddleware(
       })
     }
 
-    // Verify token
     const decoded = jwtService.verifyToken(token);
     
     if (decoded.type && decoded.type !== 'access') {
@@ -62,7 +59,6 @@ export async function authMiddleware(
       }
     }
 
-    // Attach user to request
     const normalizedRole =
       decoded.role === 'CARE_WORKER' ? 'WORKER' : decoded.role
 

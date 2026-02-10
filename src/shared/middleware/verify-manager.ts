@@ -1,10 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { isPrivilegedRole } from '../constants/privileged-roles';
 
-/**
- * Manager-only authorization middleware
- * Allows MANAGER or ADMIN roles only.
- */
 export async function verifyManager(
   request: FastifyRequest,
   reply: FastifyReply

@@ -338,7 +338,6 @@ export async function tasksRoutes(server: FastifyInstance) {
     return reply.send(result);
   });
 
-  // POST /api/tasks/log - Immutable task log (handshake)
   server.post('/log', {
     schema: {
       tags: ['Tasks'],

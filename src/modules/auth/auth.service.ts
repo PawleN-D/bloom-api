@@ -36,14 +36,7 @@ export class AuthService {
     this.jwtService = new JWTService()
   }
 
-  /**
-   * Register a new user
-   * @param data User registration data
-   * @returns Created user (without password)
-   * @throws Error if email already exists
-   */
   async registerUser(data: RegisterUserInput) {
-    // Check if user exists
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email }
     })
@@ -52,7 +45,6 @@ export class AuthService {
       throw new Error('Email already exists')
     }
 
-    // Hash password with bcrypt (10 rounds = ~100ms)
     const hashedPassword = await bcrypt.hash(data.password, 10)
 
     if (data.role !== 'SUPER_ADMIN' && data.role !== 'ADMIN' && !data.organizationId) {
@@ -70,7 +62,6 @@ export class AuthService {
 
     const userId = require('crypto').randomBytes(16).toString('hex')
 
-    // Create user
     const user = await prisma.user.create({
       data: {
         id: userId,
@@ -91,25 +82,11 @@ export class AuthService {
     return user
   }
 
-  /**
-   * Verify user password
-   * @param plainPassword Plain text password
-   * @param hashedPassword Hashed password from database
-   * @returns True if password matches
-   */
   async verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
     return bcrypt.compare(plainPassword, hashedPassword)
   }
 
-  /**
-   * Login user and generate JWT token
-   * @param email User email
-   * @param password User password
-   * @returns User object and JWT token
-   * @throws Error if credentials are invalid or user is inactive
-   */
   async login(email: string, password: string): Promise<LoginResponse> {
-    // Find user
     const user = await prisma.user.findUnique({
       where: { email }
     })
@@ -118,7 +95,6 @@ export class AuthService {
       throw new Error('Invalid credentials')
     }
 
-    // Check if user is active
     if (!user.isActive) {
       throw new Error('Account is inactive')
     }
@@ -131,14 +107,12 @@ export class AuthService {
       throw new Error('Account setup required')
     }
 
-    // Verify password
     const isPasswordValid = await this.verifyPassword(password, user.passwordHash)
 
     if (!isPasswordValid) {
       throw new Error('Invalid credentials')
     }
 
-    // Generate JWT token
     const token = this.jwtService.generateToken({
       userId: user.id,
       email: user.email,
@@ -147,7 +121,6 @@ export class AuthService {
       globalAdmin: user.role === UserRole.SUPER_ADMIN,
     })
 
-    // Return user without password
     const { passwordHash: _, pinHash: __, invitationToken: ___, tokenExpires: ____, ...userWithoutPassword } = user
 
     return {
@@ -156,16 +129,9 @@ export class AuthService {
     }
   }
 
-  /**
-   * Verify JWT token and get user
-   * @param token JWT token string
-   * @returns User information from token
-   * @throws Error if token is invalid
-   */
   async verifyToken(token: string) {
     const decoded = this.jwtService.verifyToken(token)
     
-    // Optionally: Verify user still exists and is active
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId }
     })
@@ -187,9 +153,6 @@ export class AuthService {
     }
   }
 
-  /**
-   * Complete invitation setup with password + PIN
-   */
   async setupAccount(token: string, password: string, pin: string) {
     const now = new Date()
     const user = await prisma.user.findFirst({
@@ -239,9 +202,6 @@ export class AuthService {
     }
   }
 
-  /**
-   * Verify PIN and issue session-unlock token
-   */
   async verifyPin(userId: string, pin: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },

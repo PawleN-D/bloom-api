@@ -61,7 +61,6 @@ export async function clientsRoutes(server: FastifyInstance) {
     isActive: z.boolean().optional(),
   }).strict();
   
-  // GET /api/clients
   server.get('/', {
     schema: {
       tags: ['Clients'],
@@ -82,7 +81,6 @@ export async function clientsRoutes(server: FastifyInstance) {
     }
   });
   
-  // GET /api/clients/:id
   server.get('/:id', {
     schema: {
       tags: ['Clients'],
@@ -104,7 +102,6 @@ export async function clientsRoutes(server: FastifyInstance) {
     }
   });
   
-  // POST /api/clients
   server.post('/', {
     schema: {
       tags: ['Clients'],
@@ -125,7 +122,6 @@ export async function clientsRoutes(server: FastifyInstance) {
     }
   });
   
-  // PUT /api/clients/:id
   server.put('/:id', {
     schema: {
       tags: ['Clients'],
@@ -149,7 +145,6 @@ export async function clientsRoutes(server: FastifyInstance) {
     }
   });
   
-  // DELETE /api/clients/:id
   server.delete('/:id', {
     schema: {
       tags: ['Clients'],
@@ -171,7 +166,6 @@ export async function clientsRoutes(server: FastifyInstance) {
     }
   });
 
-  // GET /api/clients/:id/tasks
   server.get('/:id/tasks', {
     preHandler: [
       authMiddleware,
@@ -190,7 +184,6 @@ export async function clientsRoutes(server: FastifyInstance) {
     }
   });
 
-  // GET /api/clients/:id/notes
   server.get('/:id/notes', {
     preHandler: [
       authMiddleware,

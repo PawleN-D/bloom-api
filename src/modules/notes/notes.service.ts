@@ -3,9 +3,6 @@ import { prisma } from '../../shared/database/prisma';
 import { withTenantIsolation } from '../../shared/middleware/tenant-context';
 
 export class NotesService {
-  /**
-   * Get all latest notes for current organization
-   */
   async getNotes(request: FastifyRequest, filters?: any) {
     const user = request.user;
     const { clientId, authorId, search, significantOnly } = filters || {};
@@ -187,9 +184,6 @@ export class NotesService {
     });
   }
 
-  /**
-   * Immutable edit: create new version row instead of updating original.
-   */
   async updateNote(request: FastifyRequest, id: string, data: any) {
     const user = request.user;
 

@@ -4,7 +4,6 @@ import helmet from "@fastify/helmet";
 import { config } from "./config/env";
 import { setupSwagger } from "./config/swagger";
 
-// Create Fastify instance
 const server = Fastify({
   logger: {
     level: config.logLevel,
@@ -44,9 +43,7 @@ async function registerPlugins() {
   });
 }
 
-// Register routes
 async function registerRoutes() {
-  // Health check
   server.get("/health", async () => {
     return { status: "ok", timestamp: new Date().toISOString() };
   });
@@ -87,9 +84,11 @@ async function registerRoutes() {
   const { managerRoutes } = await import("./modules/manager/manager.routes");
   await server.register(managerRoutes, { prefix: "/api/manager" });
 
+  const { notificationsRoutes } = await import("./modules/notifications/notifications.routes");
+  await server.register(notificationsRoutes, { prefix: "/api/notifications" });
+
 }
 
-// Start server
 async function start() {
   try {
     await registerPlugins();
@@ -112,7 +111,6 @@ async function start() {
 }
 
 
-// Handle graceful shutdown
 const signals = ["SIGINT", "SIGTERM"];
 signals.forEach((signal) => {
   process.on(signal, async () => {

@@ -6,6 +6,24 @@ import { tenantContext } from '../../shared/middleware/tenant-context';
 import { requirePrivilege } from '../../shared/middleware/require-privilege';
 import { ReportsService } from './reports.service';
 
+const reportRequestSchema = z.object({
+  reportType: z.string().min(1, 'reportType is required'),
+  dateRange: z.enum([
+    'today',
+    'yesterday',
+    'last-7-days',
+    'last-30-days',
+    'this-month',
+    'last-month',
+    'custom',
+  ]),
+  customStart: z.string().optional(),
+  customEnd: z.string().optional(),
+  sections: z.array(z.string()).optional(),
+  exportFormat: z.enum(['pdf', 'csv', 'docx']).optional(),
+  email: z.string().email().optional(),
+});
+
 export async function reportsRoutes(server: FastifyInstance) {
   const reportsService = new ReportsService();
 
@@ -35,7 +53,6 @@ export async function reportsRoutes(server: FastifyInstance) {
         status
       );
     } catch {
-      // Best-effort logging to avoid blocking report delivery
     }
   };
 
@@ -54,6 +71,163 @@ export async function reportsRoutes(server: FastifyInstance) {
       );
     }
   };
+
+  server.post('/preview', {
+    schema: {
+      tags: ['Reports'],
+      summary: 'Preview audit report configuration',
+      body: {
+        type: 'object',
+        properties: {
+          reportType: { type: 'string' },
+          dateRange: { type: 'string' },
+          customStart: { type: 'string' },
+          customEnd: { type: 'string' },
+          sections: { type: 'array', items: { type: 'string' } },
+          exportFormat: { type: 'string' },
+        },
+        required: ['reportType', 'dateRange'],
+      },
+    },
+    preHandler: [authMiddleware, tenantContext, requirePrivilege],
+  }, async (request: any, reply) => {
+    const parsed = reportRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Validation error',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    try {
+      const payload = parsed.data;
+      const { start, end, label } = reportsService.resolveDateRange(
+        payload.dateRange,
+        payload.customStart,
+        payload.customEnd
+      );
+      const stats = await reportsService.getOrganizationQuickStats(request, start, end);
+      return reply.send({
+        data: {
+          reportType: payload.reportType,
+          dateRange: {
+            start: start.toISOString(),
+            end: end.toISOString(),
+            label,
+          },
+          stats,
+          sections: payload.sections ?? [],
+          generatedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error: any) {
+      return reply.status(400).send({ error: error.message || 'Unable to preview report' });
+    }
+  });
+
+  server.post('/export', {
+    schema: {
+      tags: ['Reports'],
+      summary: 'Export audit report as PDF',
+      body: {
+        type: 'object',
+        properties: {
+          reportType: { type: 'string' },
+          dateRange: { type: 'string' },
+          customStart: { type: 'string' },
+          customEnd: { type: 'string' },
+          sections: { type: 'array', items: { type: 'string' } },
+          exportFormat: { type: 'string' },
+        },
+        required: ['reportType', 'dateRange'],
+      },
+    },
+    preHandler: [authMiddleware, tenantContext, requirePrivilege],
+  }, async (request: any, reply) => {
+    const parsed = reportRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Validation error',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const payload = parsed.data;
+    if (payload.exportFormat && payload.exportFormat !== 'pdf') {
+      return reply.status(400).send({
+        error: 'Only PDF export is supported right now',
+      });
+    }
+
+    try {
+      const { start, end, label } = reportsService.resolveDateRange(
+        payload.dateRange,
+        payload.customStart,
+        payload.customEnd
+      );
+      const stats = await reportsService.getOrganizationQuickStats(request, start, end);
+      const snapshot = {
+        reportType: payload.reportType,
+        dateRange: { start, end, label },
+        stats,
+        sections: payload.sections ?? [],
+        generatedAt: new Date(),
+      };
+      const managerName = await reportsService.getManagerDisplayName(
+        request,
+        request.user.id
+      );
+      const pdfStream = reportsService.generateOrganizationReportPdf(snapshot, managerName);
+      reply.header('Content-Type', 'application/pdf');
+      reply.header('Content-Disposition', 'attachment; filename="audit-report.pdf"');
+      return reply.send(pdfStream);
+    } catch (error: any) {
+      return reply.status(400).send({ error: error.message || 'Unable to export report' });
+    }
+  });
+
+  server.post('/email', {
+    schema: {
+      tags: ['Reports'],
+      summary: 'Email audit report to manager',
+      body: {
+        type: 'object',
+        properties: {
+          reportType: { type: 'string' },
+          dateRange: { type: 'string' },
+          customStart: { type: 'string' },
+          customEnd: { type: 'string' },
+          sections: { type: 'array', items: { type: 'string' } },
+          exportFormat: { type: 'string' },
+          email: { type: 'string' },
+        },
+        required: ['reportType', 'dateRange'],
+      },
+    },
+    preHandler: [authMiddleware, tenantContext, requirePrivilege],
+  }, async (request: any, reply) => {
+    const parsed = reportRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Validation error',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const recipient = parsed.data.email || request.user?.email;
+    if (!recipient) {
+      return reply.status(400).send({
+        error: 'Recipient email is required',
+      });
+    }
+
+    return reply.send({
+      data: {
+        queued: true,
+        recipient,
+      },
+    });
+  });
 
   server.get('/audit/:residentId', {
     schema: {

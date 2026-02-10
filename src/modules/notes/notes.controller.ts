@@ -1,4 +1,3 @@
-// src/modules/notes/notes.controller.ts
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { NotesService } from './notes.service'
 import { NoteCategory } from '@prisma/client'

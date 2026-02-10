@@ -36,7 +36,6 @@ export async function usersRoutes(server: FastifyInstance) {
     role: z.enum(['WORKER', 'ADMIN', 'MANAGER', 'ORG_OWNER', 'SUPER_ADMIN']),
   }).strict();
   
-  // GET /api/users - List all users in organization
   server.get('/', {
     preHandler: [
       authMiddleware,
@@ -54,7 +53,6 @@ export async function usersRoutes(server: FastifyInstance) {
     }
   });
   
-  // GET /api/users/:id - Get single user
   server.get('/:id', {
     preHandler: [
       authMiddleware,
@@ -73,7 +71,6 @@ export async function usersRoutes(server: FastifyInstance) {
     }
   });
   
-  // POST /api/users - Create new user (invite)
   server.post('/', {
     preHandler: [
       authMiddleware,
@@ -91,7 +88,6 @@ export async function usersRoutes(server: FastifyInstance) {
     }
   });
   
-  // PUT /api/users/:id - Update user
   server.put('/:id', {
     preHandler: [
       authMiddleware,
@@ -113,7 +109,6 @@ export async function usersRoutes(server: FastifyInstance) {
     }
   });
   
-  // PUT /api/users/:id/role - Change user role (ORG_OWNER only)
   server.put('/:id/role', {
     preHandler: [
       authMiddleware,
@@ -135,7 +130,6 @@ export async function usersRoutes(server: FastifyInstance) {
     }
   });
   
-  // DELETE /api/users/:id - Deactivate user (soft delete)
   server.delete('/:id', {
     preHandler: [
       authMiddleware,
@@ -155,7 +149,6 @@ export async function usersRoutes(server: FastifyInstance) {
     }
   });
   
-  // POST /api/users/:id/reactivate - Reactivate user
   server.post('/:id/reactivate', {
     preHandler: [
       authMiddleware,

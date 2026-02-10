@@ -4,18 +4,13 @@ import { withTenantIsolation } from '../../shared/middleware/tenant-context';
 
 export class ClientsService {
   
-  /**
-   * Get all clients for current organization
-   */
   async getClients(request: FastifyRequest, filters?: any) {
     const { search, active } = filters || {};
     
-    // Build where clause with tenant isolation
     const where = withTenantIsolation(request, {
       isActive: active === 'true' ? true : active === 'false' ? false : undefined,
     });
     
-    // Add search filter if provided
     if (search) {
       (where as any).OR = [
         { firstName: { contains: search, mode: 'insensitive' } },
@@ -23,7 +18,6 @@ export class ClientsService {
       ];
     }
     
-    // Simplified - no includes for now to avoid relation errors
     const clients = await prisma.client.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -32,11 +26,7 @@ export class ClientsService {
     return clients;
   }
   
-  /**
-   * Get single client (with tenant isolation)
-   */
   async getClient(request: FastifyRequest, id: string) {
-    // Simplified - no includes for now
     const client = await prisma.client.findUnique({
       where: withTenantIsolation(request, { id }),
     });
@@ -48,9 +38,6 @@ export class ClientsService {
     return client;
   }
   
-  /**
-   * Create client
-   */
   async createClient(request: FastifyRequest, data: any) {
     const org = request.organization;
     
@@ -58,7 +45,6 @@ export class ClientsService {
       throw new Error('Organization required');
     }
     
-    // Generate ID if not provided
     const clientId = data.id || require('crypto').randomBytes(16).toString('hex');
     
     const client = await prisma.client.create({
@@ -86,11 +72,7 @@ export class ClientsService {
     return client;
   }
   
-  /**
-   * Update client (with tenant isolation check)
-   */
   async updateClient(request: FastifyRequest, id: string, data: any) {
-    // Verify client belongs to organization
     const existing = await prisma.client.findUnique({
       where: withTenantIsolation(request, { id }),
     });
@@ -99,7 +81,6 @@ export class ClientsService {
       throw new Error('Client not found');
     }
     
-    // Build update data
     const updateData: any = {
       updatedAt: new Date(),
     };
@@ -128,11 +109,7 @@ export class ClientsService {
     return client;
   }
   
-  /**
-   * Delete client (soft delete with tenant isolation)
-   */
   async deleteClient(request: FastifyRequest, id: string) {
-    // Verify client belongs to organization
     const existing = await prisma.client.findUnique({
       where: withTenantIsolation(request, { id }),
     });
@@ -141,7 +118,6 @@ export class ClientsService {
       throw new Error('Client not found');
     }
     
-    // Soft delete
     await prisma.client.update({
       where: { id },
       data: { 

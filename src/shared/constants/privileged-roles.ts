@@ -1,6 +1,11 @@
 import { UserRole } from '@prisma/client';
 
-export const PRIVILEGED_ROLES = [UserRole.ADMIN, UserRole.MANAGER] as const;
+export const PRIVILEGED_ROLES = [
+  UserRole.ADMIN,
+  UserRole.MANAGER,
+  UserRole.ORG_OWNER,
+  UserRole.SUPER_ADMIN,
+] as const;
 
 export type PrivilegedRole = (typeof PRIVILEGED_ROLES)[number];
 

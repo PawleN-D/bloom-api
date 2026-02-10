@@ -1,4 +1,3 @@
-// src/modules/auth/auth.service.test.ts
 import { AuthService } from './auth.service'
 import { prisma } from '../../../tests/setup'
 import { UserRole } from '@prisma/client'
@@ -13,7 +12,6 @@ describe('AuthService', () => {
 
   describe('registerUser', () => {
     it('should create a new user with hashed password', async () => {
-      // Arrange
       const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'worker@test.com',
@@ -24,10 +22,8 @@ describe('AuthService', () => {
         organizationId: org.id,
       }
 
-      // Act
       const user = await authService.registerUser(userData)
 
-      // Assert
       expect(user).toBeDefined()
       expect(user.id).toBeDefined()
       expect(user.email).toBe(userData.email)
@@ -42,7 +38,6 @@ describe('AuthService', () => {
     })
 
     it('should not allow duplicate emails', async () => {
-      // Arrange
       const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'duplicate@test.com',
@@ -53,17 +48,14 @@ describe('AuthService', () => {
         organizationId: org.id,
       }
 
-      // Create first user
       await authService.registerUser(userData)
 
-      // Act & Assert
       await expect(
         authService.registerUser(userData)
       ).rejects.toThrow('Email already exists')
     })
 
     it('should create users with different roles', async () => {
-      // Arrange
       const org = await createOrganization({ name: 'Auth Org' })
       const workerData = {
         email: 'unique-worker@test.com',
@@ -83,17 +75,14 @@ describe('AuthService', () => {
         organizationId: org.id,
       }
 
-      // Act
       const worker = await authService.registerUser(workerData)
       const admin = await authService.registerUser(adminData)
 
-      // Assert
       expect(worker.role).toBe(UserRole.WORKER)
       expect(admin.role).toBe(UserRole.ADMIN)
     })
 
     it('should hash different passwords differently', async () => {
-      // Arrange
       const org = await createOrganization({ name: 'Auth Org' })
       const user1Data = {
         email: 'user1@test.com',
@@ -113,18 +102,15 @@ describe('AuthService', () => {
         organizationId: org.id,
       }
 
-      // Act
       const user1 = await authService.registerUser(user1Data)
       const user2 = await authService.registerUser(user2Data)
 
-      // Assert
       expect(user1.passwordHash).not.toBe(user2.passwordHash)
     })
   })
 
   describe('login', () => {
     it('should login user with valid credentials and return token', async () => {
-      // Arrange - Create a user first
       const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'login@test.com',
@@ -136,10 +122,8 @@ describe('AuthService', () => {
       }
       await authService.registerUser(userData)
 
-      // Act - Try to login
       const result = await authService.login(userData.email, userData.password)
 
-      // Assert
       expect(result).toBeDefined()
       expect(result.user).toBeDefined()
       expect(result.token).toBeDefined()
@@ -150,7 +134,6 @@ describe('AuthService', () => {
     })
 
     it('should reject invalid password', async () => {
-      // Arrange
       const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'test@test.com',
@@ -162,21 +145,18 @@ describe('AuthService', () => {
       }
       await authService.registerUser(userData)
 
-      // Act & Assert
       await expect(
         authService.login(userData.email, 'WrongPassword')
       ).rejects.toThrow('Invalid credentials')
     })
 
     it('should reject non-existent user', async () => {
-      // Act & Assert
       await expect(
         authService.login('nonexistent@test.com', 'password')
       ).rejects.toThrow('Invalid credentials')
     })
 
     it('should reject inactive user', async () => {
-      // Arrange - Create user then deactivate
       const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'inactive@test.com',
@@ -188,20 +168,17 @@ describe('AuthService', () => {
       }
       const user = await authService.registerUser(userData)
       
-      // Deactivate user
       await prisma.user.update({
         where: { id: user.id },
         data: { isActive: false }
       })
 
-      // Act & Assert
       await expect(
         authService.login(userData.email, userData.password)
       ).rejects.toThrow('Account is inactive')
     })
 
     it('should generate valid JWT token on login', async () => {
-      // Arrange
       const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'jwt@test.com',
@@ -213,10 +190,8 @@ describe('AuthService', () => {
       }
       await authService.registerUser(userData)
 
-      // Act
       const result = await authService.login(userData.email, userData.password)
 
-      // Assert - Token should be verifiable
       const verified = await authService.verifyToken(result.token)
       expect(verified.email).toBe(userData.email)
       expect(verified.role).toBe(UserRole.ADMIN)
@@ -225,7 +200,6 @@ describe('AuthService', () => {
 
   describe('verifyToken', () => {
     it('should verify valid token and return user info', async () => {
-      // Arrange - Create user and login
       const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'verify@test.com',
@@ -238,10 +212,8 @@ describe('AuthService', () => {
       await authService.registerUser(userData)
       const { token } = await authService.login(userData.email, userData.password)
 
-      // Act
       const verified = await authService.verifyToken(token)
 
-      // Assert
       expect(verified).toBeDefined()
       expect(verified.email).toBe(userData.email)
       expect(verified.role).toBe(UserRole.WORKER)
@@ -249,17 +221,14 @@ describe('AuthService', () => {
     })
 
     it('should reject invalid token', async () => {
-      // Arrange
       const invalidToken = 'invalid.token.here'
 
-      // Act & Assert
       await expect(
         authService.verifyToken(invalidToken)
       ).rejects.toThrow()
     })
 
     it('should reject token for inactive user', async () => {
-      // Arrange - Create user, login, then deactivate
       const org = await createOrganization({ name: 'Auth Org' })
       const userData = {
         email: 'deactivate@test.com',
@@ -272,13 +241,11 @@ describe('AuthService', () => {
       const user = await authService.registerUser(userData)
       const { token } = await authService.login(userData.email, userData.password)
 
-      // Deactivate user
       await prisma.user.update({
         where: { id: user.id },
         data: { isActive: false }
       })
 
-      // Act & Assert
       await expect(
         authService.verifyToken(token)
       ).rejects.toThrow('User not found or inactive')

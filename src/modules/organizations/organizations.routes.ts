@@ -24,7 +24,6 @@ export async function organizationsRoutes(server: FastifyInstance) {
     config: z.record(z.any()).optional(),
   }).strict();
   
-  // GET /api/organization - Get current organization
   server.get('/', {
     preHandler: [
       authMiddleware,
@@ -39,7 +38,6 @@ export async function organizationsRoutes(server: FastifyInstance) {
     }
   });
   
-  // PUT /api/organization - Update organization settings
   server.put('/', {
     preHandler: [
       authMiddleware,
@@ -57,7 +55,6 @@ export async function organizationsRoutes(server: FastifyInstance) {
     }
   });
   
-  // GET /api/organization/stats - Get organization statistics
   server.get('/stats', {
     preHandler: [
       authMiddleware,
@@ -72,7 +69,6 @@ export async function organizationsRoutes(server: FastifyInstance) {
     }
   });
   
-  // GET /api/organization/features - Get enabled features
   server.get('/features', {
     preHandler: [
       authMiddleware,
@@ -87,7 +83,6 @@ export async function organizationsRoutes(server: FastifyInstance) {
     }
   });
   
-  // POST /api/organization/features/:key - Enable feature
   server.post('/features/:key', {
     preHandler: [
       authMiddleware,
@@ -109,7 +104,6 @@ export async function organizationsRoutes(server: FastifyInstance) {
     }
   });
   
-  // DELETE /api/organization/features/:key - Disable feature
   server.delete('/features/:key', {
     preHandler: [
       authMiddleware,

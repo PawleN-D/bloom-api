@@ -16,7 +16,6 @@ export async function backofficeOrganizationsRoutes(server: FastifyInstance) {
     subdomain: z.string().min(1),
   });
 
-  // GET /api/backoffice/organizations/check-subdomain/:subdomain
   server.get('/organizations/check-subdomain/:subdomain', {
     schema: {
       tags: ['Backoffice'],

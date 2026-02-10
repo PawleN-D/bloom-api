@@ -3,9 +3,6 @@ import { prisma } from '../../shared/database/prisma';
 
 export class OrganizationsService {
   
-  /**
-   * Get current organization details
-   */
   async getCurrentOrganization(request: FastifyRequest) {
     const org = request.organization;
     
@@ -37,9 +34,6 @@ export class OrganizationsService {
     return organization;
   }
   
-  /**
-   * Update organization settings
-   */
   async updateOrganization(request: FastifyRequest, data: any) {
     const org = request.organization;
     
@@ -51,14 +45,11 @@ export class OrganizationsService {
       updatedAt: new Date(),
     };
     
-    // Only allow updating certain fields
     if (data.name !== undefined) updateData.name = data.name;
     if (data.logo !== undefined) updateData.logo = data.logo;
     if (data.primaryColor !== undefined) updateData.primaryColor = data.primaryColor;
     if (data.billingEmail !== undefined) updateData.billingEmail = data.billingEmail;
     
-    // Don't allow changing plan, maxUsers, maxClients, active, suspended via this endpoint
-    // Those should only be changed by super admin or billing system
     
     const organization = await prisma.organization.update({
       where: { id: org.id },
@@ -83,9 +74,6 @@ export class OrganizationsService {
     return organization;
   }
   
-  /**
-   * Get organization statistics
-   */
   async getOrganizationStats(request: FastifyRequest) {
     const org = request.organization;
     
@@ -159,9 +147,6 @@ export class OrganizationsService {
     };
   }
   
-  /**
-   * Get enabled features for organization
-   */
   async getOrganizationFeatures(request: FastifyRequest) {
     const org = request.organization;
 
@@ -211,9 +196,6 @@ export class OrganizationsService {
     return features;
   }
   
-  /**
-   * Enable feature for organization
-   */
   async enableFeature(request: FastifyRequest, featureKey: string, config?: any) {
     const org = request.organization;
     
@@ -221,7 +203,6 @@ export class OrganizationsService {
       throw new Error('Organization not found');
     }
     
-    // Get feature
     const feature = await prisma.feature.findUnique({
       where: { key: featureKey },
     });
@@ -230,12 +211,10 @@ export class OrganizationsService {
       throw new Error('Feature not found');
     }
     
-    // Check if feature is available for this plan
     if (!feature.availableInPlans.includes(org.plan) && !feature.defaultEnabled) {
       throw new Error(`Feature '${feature.name}' is not available in ${org.plan} plan. Upgrade to access this feature.`);
     }
     
-    // Enable or update feature
     await prisma.organizationFeature.upsert({
       where: {
         organizationId_featureId: {
@@ -269,9 +248,6 @@ export class OrganizationsService {
     };
   }
   
-  /**
-   * Disable feature for organization
-   */
   async disableFeature(request: FastifyRequest, featureKey: string) {
     const org = request.organization;
     
@@ -279,7 +255,6 @@ export class OrganizationsService {
       throw new Error('Organization not found');
     }
     
-    // Get feature
     const feature = await prisma.feature.findUnique({
       where: { key: featureKey },
     });
@@ -288,7 +263,6 @@ export class OrganizationsService {
       throw new Error('Feature not found');
     }
     
-    // Disable feature
     await prisma.organizationFeature.upsert({
       where: {
         organizationId_featureId: {

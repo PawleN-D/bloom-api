@@ -20,14 +20,9 @@ async function logSecurityAccess(request: FastifyRequest) {
       },
     });
   } catch {
-    // Best-effort logging for audit trails
   }
 }
 
-/**
- * Privileged access middleware
- * Allows ADMIN or MANAGER roles only.
- */
 export async function requirePrivilege(
   request: FastifyRequest,
   reply: FastifyReply

@@ -1,9 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 
-/**
- * Bloom HQ admin middleware
- * Requires SUPER_ADMIN or HQ ADMIN (ADMIN with no organization).
- */
 export async function isBloomHQAdmin(
   request: FastifyRequest,
   reply: FastifyReply
