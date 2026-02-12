@@ -16,7 +16,6 @@ export async function authRoutes(server: FastifyInstance) {
     }
   }
 
-  // Register user
   server.post('/register', {
     schema: {
       tags: ['Auth'],
@@ -35,7 +34,6 @@ export async function authRoutes(server: FastifyInstance) {
     }
   }, authController.register)
 
-  // Login
   server.post('/login', {
     schema: {
       tags: ['Auth'],
@@ -50,7 +48,6 @@ export async function authRoutes(server: FastifyInstance) {
     }
   }, authController.login)
 
-  // Invitation setup
   server.post('/setup', {
     schema: {
       tags: ['Auth'],
@@ -66,7 +63,6 @@ export async function authRoutes(server: FastifyInstance) {
     }
   }, authController.setupAccount)
 
-  // Verify PIN and unlock session (protected)
   server.post('/verify-pin', {
     schema: {
       tags: ['Auth'],
@@ -81,7 +77,6 @@ export async function authRoutes(server: FastifyInstance) {
     preHandler: [authMiddleware],
   }, authController.verifyPin)
 
-  // Get current user (protected route)
   server.get('/me', {
     schema: {
       tags: ['Auth'],

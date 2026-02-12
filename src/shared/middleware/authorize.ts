@@ -2,25 +2,21 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { UserRole } from '@prisma/client';
 
 export enum Permission {
-  // User management
   CREATE_USER = 'create:user',
   READ_USER = 'read:user',
   UPDATE_USER = 'update:user',
   DELETE_USER = 'delete:user',
   MANAGE_ROLES = 'manage:roles',
   
-  // Organization management
   UPDATE_ORG = 'update:organization',
   MANAGE_BILLING = 'manage:billing',
   MANAGE_FEATURES = 'manage:features',
   
-  // Client management
   CREATE_CLIENT = 'create:client',
   READ_CLIENT = 'read:client',
   UPDATE_CLIENT = 'update:client',
   DELETE_CLIENT = 'delete:client',
   
-  // Task management
   CREATE_TASK = 'create:task',
   READ_TASK = 'read:task',
   UPDATE_TASK = 'update:task',
@@ -28,7 +24,6 @@ export enum Permission {
   ASSIGN_TASK = 'assign:task',
   COMPLETE_TASK = 'complete:task',
   
-  // Note management
   CREATE_NOTE = 'create:note',
   READ_NOTE = 'read:note',
   UPDATE_NOTE = 'update:note',
@@ -115,10 +110,6 @@ const rolePermissions: Record<Role, Permission[]> = {
   ],
 };
 
-/**
- * Authorization middleware
- * Checks if user has required permissions
- */
 export function authorize(...permissions: Permission[]) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user;
@@ -150,9 +141,6 @@ export function authorize(...permissions: Permission[]) {
   };
 }
 
-/**
- * Helper: Check if actor can manage target user
- */
 export function canManageUser(actorRole: Role, targetRole: Role): boolean {
   if (actorRole === 'SUPER_ADMIN') return true;
   if (actorRole === 'ORG_OWNER' && targetRole !== 'SUPER_ADMIN') return true;

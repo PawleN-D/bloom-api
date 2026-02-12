@@ -62,7 +62,6 @@ export async function register(
       organizationId,
     })
 
-    // Don't return password
     const { passwordHash: _, pinHash: __, invitationToken: ___, tokenExpires: ____, ...userWithoutPassword } = user
 
     return reply.status(201).send({
@@ -158,7 +157,6 @@ export async function getMe(
   reply: FastifyReply
 ) {
   try {
-    // We'll get user from request.user (set by auth middleware)
     const user = request.user
 
     return reply.status(200).send({

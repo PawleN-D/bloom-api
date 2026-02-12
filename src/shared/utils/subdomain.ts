@@ -32,8 +32,6 @@ function clampSubdomain(value: string) {
   return trimHyphens(value.slice(0, 63));
 }
 
-// 1. Generate subdomain from organization name
-// "CareWell Dublin" ? "carewell-dublin"
 export function generateSubdomain(organizationName: string): string {
   const normalized = organizationName
     .normalize('NFKD')
@@ -48,7 +46,6 @@ export function generateSubdomain(organizationName: string): string {
   return clampSubdomain(slug);
 }
 
-// 2. Validate subdomain format (lowercase, hyphens only, not reserved)
 export function isValidSubdomain(subdomain: string): boolean {
   if (!subdomain) return false;
   if (!SUBDOMAIN_REGEX.test(subdomain)) return false;
@@ -56,7 +53,6 @@ export function isValidSubdomain(subdomain: string): boolean {
   return true;
 }
 
-// 3. Check if subdomain is available in DB
 export async function isSubdomainAvailable(
   prisma: any,
   subdomain: string,
@@ -73,7 +69,6 @@ export async function isSubdomainAvailable(
   return !existing;
 }
 
-// 4. Generate unique subdomain (append number if taken)
 export async function generateUniqueSubdomain(
   prisma: any,
   organizationName: string
@@ -102,15 +97,11 @@ export async function generateUniqueSubdomain(
   return candidate;
 }
 
-// 5. Get full URL from subdomain
-// "company1" ? "https://company1.bloom.com"
 export function getOrganizationUrl(subdomain: string, baseDomain?: string): string {
   const domain = normalizeBaseDomain(baseDomain);
   return `https://${subdomain}.${domain}`;
 }
 
-// 6. Extract subdomain from hostname
-// "company1.bloom.com" ? "company1"
 export function extractSubdomain(hostname: string, baseDomain?: string): string | null {
   if (!hostname) return null;
   const domain = normalizeBaseDomain(baseDomain);
@@ -123,7 +114,6 @@ export function extractSubdomain(hostname: string, baseDomain?: string): string 
   return subdomain || null;
 }
 
-// 7. Get organization by hostname
 export async function getOrganizationBySubdomain(
   prisma: any,
   hostname: string

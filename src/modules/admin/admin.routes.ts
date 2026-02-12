@@ -8,10 +8,6 @@ import { UsersService } from '../users/users.service';
 import { z } from 'zod';
 import { validateZod } from '../../shared/validation/zod';
 
-/**
- * Super Admin Routes
- * Only accessible by SUPER_ADMIN role
- */
 export async function adminRoutes(server: FastifyInstance) {
   const adminService = new AdminService();
   const usersService = new UsersService();
@@ -117,7 +113,6 @@ export async function adminRoutes(server: FastifyInstance) {
   }).strict();
 
   
-  // Middleware to ensure SUPER_ADMIN only
   const requireSuperAdmin = async (request: any, reply: any) => {
     if (!request.user || request.user.role !== 'SUPER_ADMIN') {
       return reply.status(403).send({
@@ -127,7 +122,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   };
 
-  // Middleware to ensure HQ admin (SUPER_ADMIN or HQ ADMIN)
   const requireHQAdmin = async (request: any, reply: any) => {
     const user = request.user;
 
@@ -150,7 +144,6 @@ export async function adminRoutes(server: FastifyInstance) {
   };
 
 
-  // POST /api/admin/invite - Invite staff (manager+)
   server.post('/invite', {
     preHandler: [
       authMiddleware,
@@ -174,7 +167,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
   
-  // GET /api/admin/organizations - List all organizations
   server.get('/organizations', {
     preHandler: [authMiddleware, requireHQAdmin]
   }, async (request, reply) => {
@@ -188,7 +180,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
   
-  // GET /api/admin/organizations/:id - Get organization details
   server.get('/organizations/:id', {
     preHandler: [authMiddleware, requireHQAdmin]
   }, async (request, reply) => {
@@ -203,7 +194,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
   
-  // POST /api/admin/organizations - Create new organization
   server.post('/organizations', {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
@@ -217,7 +207,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
   
-  // PUT /api/admin/organizations/:id - Update organization
   server.put('/organizations/:id', {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
@@ -234,7 +223,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
   
-  // POST /api/admin/organizations/:id/suspend - Suspend organization
   server.post('/organizations/:id/suspend', {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
@@ -249,7 +237,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
   
-  // POST /api/admin/organizations/:id/unsuspend - Unsuspend organization
   server.post('/organizations/:id/unsuspend', {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
@@ -264,7 +251,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
 
-  // GET /api/admin/organizations/:id/users - List org users
   server.get('/organizations/:id/users', {
     preHandler: [authMiddleware, requireHQAdmin]
   }, async (request, reply) => {
@@ -280,7 +266,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
 
-  // POST /api/admin/organizations/:id/users - Invite user
   server.post('/organizations/:id/users', {
     preHandler: [authMiddleware, requireHQAdmin]
   }, async (request, reply) => {
@@ -297,7 +282,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
 
-  // PUT /api/admin/organizations/:id/users/:userId - Update user
   server.put('/organizations/:id/users/:userId', {
     preHandler: [authMiddleware, requireHQAdmin]
   }, async (request, reply) => {
@@ -317,7 +301,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
 
-  // PUT /api/admin/organizations/:id/users/:userId/role - Update role
   server.put('/organizations/:id/users/:userId/role', {
     preHandler: [authMiddleware, requireHQAdmin]
   }, async (request, reply) => {
@@ -337,7 +320,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
 
-  // DELETE /api/admin/organizations/:id/users/:userId - Deactivate user
   server.delete('/organizations/:id/users/:userId', {
     preHandler: [authMiddleware, requireHQAdmin]
   }, async (request, reply) => {
@@ -355,7 +337,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
 
-  // POST /api/admin/organizations/:id/users/:userId/reactivate - Reactivate user
   server.post('/organizations/:id/users/:userId/reactivate', {
     preHandler: [authMiddleware, requireHQAdmin]
   }, async (request, reply) => {
@@ -374,7 +355,6 @@ export async function adminRoutes(server: FastifyInstance) {
   });
 
   
-  // GET /api/admin/stats - Platform statistics
   server.get('/stats', {
     preHandler: [authMiddleware, requireHQAdmin]
   }, async (_request, reply) => {
@@ -386,7 +366,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
 
-  // GET /api/admin/subscriptions - List all subscriptions
   server.get('/subscriptions', {
     preHandler: [authMiddleware, requireHQAdmin]
   }, async (request, reply) => {
@@ -400,7 +379,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
 
-  // GET /api/admin/features - List all features
   server.get('/features', {
     preHandler: [authMiddleware, requireHQAdmin]
   }, async (_request, reply) => {
@@ -412,7 +390,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
 
-  // GET /api/admin/organizations/:id/features - Org features
   server.get('/organizations/:id/features', {
     preHandler: [authMiddleware, requireHQAdmin]
   }, async (request, reply) => {
@@ -427,7 +404,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
 
-  // POST /api/admin/organizations/:id/features/:key - Set org feature override
   server.post('/organizations/:id/features/:key', {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {
@@ -447,7 +423,6 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
 
-  // POST /api/admin/features - Create new feature
   server.post('/features', {
     preHandler: [authMiddleware, requireSuperAdmin]
   }, async (request, reply) => {

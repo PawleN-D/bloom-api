@@ -8,9 +8,6 @@ import { config } from '../../config/env';
 
 export class UsersService {
   
-  /**
-   * Get all users in organization
-   */
   async getUsers(request: FastifyRequest, filters?: any) {
     const { search, role, active } = filters || {};
     
@@ -39,7 +36,6 @@ export class UsersService {
         status: true,
         createdAt: true,
         updatedAt: true,
-        // Don't return password!
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -47,9 +43,6 @@ export class UsersService {
     return users;
   }
   
-  /**
-   * Get single user
-   */
   async getUser(request: FastifyRequest, id: string) {
     const user = await prisma.user.findUnique({
       where: withTenantIsolation(request, { id }),
@@ -74,16 +67,10 @@ export class UsersService {
     return user;
   }
   
-  /**
-   * Create new user (invite to organization)
-   */
   async createUser(request: FastifyRequest, data: any) {
     return this.inviteUser(request, data);
   }
 
-  /**
-   * Invite user with secure onboarding token
-   */
   async inviteUser(request: FastifyRequest, data: any) {
     const currentUser = request.user;
     const org = request.organization;
@@ -92,7 +79,6 @@ export class UsersService {
       throw new Error('Organization required');
     }
 
-    // Check if email already exists
     const existing = await prisma.user.findUnique({
       where: { email: data.email },
     });
@@ -101,13 +87,11 @@ export class UsersService {
       throw new Error('User with this email already exists');
     }
 
-    // Validate role assignment
     const requestedRole = data.role || 'WORKER';
     if (!currentUser || !canManageUser(currentUser.role, requestedRole)) {
       throw new Error(`You cannot create users with role: ${requestedRole}`);
     }
 
-    // Check organization user limit
     const userCount = await prisma.user.count({
       where: { organizationId: org.id, isActive: true },
     });
@@ -164,8 +148,6 @@ export class UsersService {
   }
 
   private async sendInviteEmail(email: string, token: string, orgName: string) {
-    // Mock: replace with Resend/SendGrid integration.
-    // Intentionally logs token only for non-production environments.
     if (config.nodeEnv !== 'production') {
       console.log(`[Invite Email] ${email} invited to ${orgName}. Token: ${token}`);
     } else {
@@ -173,13 +155,9 @@ export class UsersService {
     }
   }
   
-  /**
-   * Update user
-   */
   async updateUser(request: FastifyRequest, id: string, data: any) {
     const currentUser = request.user;
     
-    // Verify user belongs to organization
     const existing = await prisma.user.findUnique({
       where: withTenantIsolation(request, { id }),
     });
@@ -188,7 +166,6 @@ export class UsersService {
       throw new Error('User not found');
     }
     
-    // Check permissions
     if (!currentUser || !canManageUser(currentUser.role, existing.role)) {
       throw new Error('You do not have permission to update this user');
     }
@@ -200,7 +177,6 @@ export class UsersService {
     if (data.firstName !== undefined) updateData.firstName = data.firstName;
     if (data.lastName !== undefined) updateData.lastName = data.lastName;
     if (data.email !== undefined) {
-      // Check if new email is already taken
       const emailTaken = await prisma.user.findFirst({
         where: { 
           email: data.email,
@@ -229,13 +205,9 @@ export class UsersService {
     return user;
   }
   
-  /**
-   * Change user role (ORG_OWNER or higher only)
-   */
   async changeUserRole(request: FastifyRequest, id: string, newRole: string) {
     const currentUser = request.user;
     
-    // Verify user belongs to organization
     const existing = await prisma.user.findUnique({
       where: withTenantIsolation(request, { id }),
     });
@@ -244,16 +216,11 @@ export class UsersService {
       throw new Error('User not found');
     }
     
-    // Check if current user can manage both old and new roles
     if (!currentUser || !canManageUser(currentUser.role, existing.role)) {
       throw new Error('You cannot manage this user');
     }
     
-    // if (!canManageUser(currentUser.role, newRole)) {
-    //   throw new Error(`You cannot assign role: ${newRole}`);
-    // }
     
-    // Prevent user from changing their own role
     if (currentUser && existing.id === currentUser.id) {
       throw new Error('You cannot change your own role');
     }
@@ -276,13 +243,9 @@ export class UsersService {
     return user;
   }
   
-  /**
-   * Deactivate user (soft delete)
-   */
   async deactivateUser(request: FastifyRequest, id: string) {
     const currentUser = request.user;
     
-    // Verify user belongs to organization
     const existing = await prisma.user.findUnique({
       where: withTenantIsolation(request, { id }),
     });
@@ -291,12 +254,10 @@ export class UsersService {
       throw new Error('User not found');
     }
     
-    // Check permissions
     if (!currentUser || !canManageUser(currentUser.role, existing.role)) {
       throw new Error('You do not have permission to deactivate this user');
     }
     
-    // Prevent user from deactivating themselves
     if (currentUser && existing.id === currentUser.id) {
       throw new Error('You cannot deactivate yourself');
     }
@@ -312,9 +273,6 @@ export class UsersService {
     return { message: 'User deactivated successfully' };
   }
   
-  /**
-   * Reactivate user
-   */
   async reactivateUser(request: FastifyRequest, id: string) {
     const org = request.organization;
     
@@ -322,7 +280,6 @@ export class UsersService {
       throw new Error('Organization required');
     }
     
-    // Verify user belongs to organization
     const existing = await prisma.user.findUnique({
       where: withTenantIsolation(request, { id }),
     });
@@ -331,7 +288,6 @@ export class UsersService {
       throw new Error('User not found');
     }
     
-    // Check organization user limit
     const activeUserCount = await prisma.user.count({
       where: { organizationId: org.id, isActive: true },
     });

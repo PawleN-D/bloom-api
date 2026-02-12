@@ -15,10 +15,6 @@ declare module 'fastify' {
   }
 }
 
-/**
- * Tenant Context Middleware
- * Loads organization from authenticated user
- */
 export async function tenantContext(
   request: FastifyRequest,
   reply: FastifyReply
@@ -32,11 +28,9 @@ export async function tenantContext(
     });
   }
 
-  // Skip for super admin
   if (user?.role === 'SUPER_ADMIN') {
     const orgId = request.headers['x-organization-id'];
     if (!orgId || Array.isArray(orgId)) {
-      // Allow super admin to bypass tenant scoping when no org header is provided.
       return;
     }
 
@@ -69,7 +63,6 @@ export async function tenantContext(
     });
   }
   
-  // Load organization
   const org = await prisma.organization.findUnique({
     where: { id: user.organizationId },
   });
@@ -91,9 +84,6 @@ export async function tenantContext(
   request.organization = org;
 }
 
-/**
- * Data isolation helper
- */
 export function withTenantIsolation<T extends Record<string, any>>(
   request: FastifyRequest,
   where: T = {} as T

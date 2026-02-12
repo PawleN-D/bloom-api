@@ -400,9 +400,6 @@ export class TasksService {
     };
   }
 
-  /**
-   * Log a task completion with immutable audit trail
-   */
   async logTask(request: FastifyRequest, input: LogTaskInput) {
     const user = request.user;
     if (!user) {

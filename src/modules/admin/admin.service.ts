@@ -10,9 +10,6 @@ import {
 
 export class AdminService {
   
-  /**
-   * List all organizations with pagination
-   */
   async listOrganizations(filters?: any) {
     const { search, plan, active, suspended } = filters || {};
     
@@ -53,9 +50,6 @@ export class AdminService {
     };
   }
   
-  /**
-   * Get single organization with full details
-   */
   async getOrganization(id: string) {
     const organization = await prisma.organization.findUnique({
       where: { id },
@@ -89,14 +83,9 @@ export class AdminService {
     return organization;
   }
   
-  /**
-   * Create new organization
-   */
   async createOrganization(data: any) {
-    // Generate slug from name if not provided
     const slug = data.slug || data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     
-    // Check if slug is already taken
     const existing = await prisma.organization.findUnique({
       where: { slug },
     });
@@ -143,9 +132,6 @@ export class AdminService {
     return organization;
   }
   
-  /**
-   * Update organization (super admin can change plan, limits, etc.)
-   */
   async updateOrganization(id: string, data: any) {
     const existing = await prisma.organization.findUnique({
       where: { id },
@@ -159,7 +145,6 @@ export class AdminService {
       updatedAt: new Date(),
     };
     
-    // Super admin can update everything
     if (data.name !== undefined) updateData.name = data.name;
     if (data.logo !== undefined) updateData.logo = data.logo;
     if (data.primaryColor !== undefined) updateData.primaryColor = data.primaryColor;
@@ -181,9 +166,6 @@ export class AdminService {
     return organization;
   }
   
-  /**
-   * Suspend organization
-   */
   async suspendOrganization(id: string) {
     const existing = await prisma.organization.findUnique({
       where: { id },
@@ -207,9 +189,6 @@ export class AdminService {
     };
   }
   
-  /**
-   * Unsuspend organization
-   */
   async unsuspendOrganization(id: string) {
     const existing = await prisma.organization.findUnique({
       where: { id },
@@ -233,9 +212,6 @@ export class AdminService {
     };
   }
   
-  /**
-   * Get platform-wide statistics
-   */
   async getPlatformStats() {
     const [
       totalOrganizations,
@@ -286,9 +262,6 @@ export class AdminService {
   }
 
 
-  /**
-   * List subscriptions with organization context
-   */
   async listSubscriptions(filters?: any) {
     const { search, plan, status } = filters || {};
     const where: any = {};
@@ -334,9 +307,6 @@ export class AdminService {
   }
 
 
-  /**
-   * List users for an organization
-   */
   async listOrganizationUsers(orgId: string, filters?: any) {
     const { search, role, active } = filters || {};
     const where: any = { organizationId: orgId };
@@ -369,9 +339,6 @@ export class AdminService {
     });
   }
 
-  /**
-   * Create (invite) user for an organization
-   */
   async createOrganizationUser(orgId: string, data: any) {
     const organization = await prisma.organization.findUnique({
       where: { id: orgId },
@@ -453,9 +420,6 @@ export class AdminService {
     };
   }
 
-  /**
-   * Update user profile
-   */
   async updateOrganizationUser(orgId: string, userId: string, data: any) {
     const existing = await prisma.user.findFirst({
       where: { id: userId, organizationId: orgId },
@@ -495,9 +459,6 @@ export class AdminService {
     });
   }
 
-  /**
-   * Update user role
-   */
   async updateOrganizationUserRole(orgId: string, userId: string, role: UserRole) {
     if (role === 'SUPER_ADMIN') {
       throw new Error('SUPER_ADMIN role cannot be assigned to organization users');
@@ -538,9 +499,6 @@ export class AdminService {
     });
   }
 
-  /**
-   * Deactivate user
-   */
   async deactivateOrganizationUser(orgId: string, userId: string) {
     const existing = await prisma.user.findFirst({
       where: { id: userId, organizationId: orgId },
@@ -558,9 +516,6 @@ export class AdminService {
     return { message: 'User deactivated successfully' };
   }
 
-  /**
-   * Reactivate user
-   */
   async reactivateOrganizationUser(orgId: string, userId: string) {
     const organization = await prisma.organization.findUnique({
       where: { id: orgId },
@@ -604,9 +559,6 @@ export class AdminService {
     });
   }
   
-  /**
-   * List all features
-   */
   async listFeatures() {
     const features = await prisma.feature.findMany({
       orderBy: [
@@ -618,9 +570,6 @@ export class AdminService {
     return features;
   }
   
-  /**
-   * Create new feature
-   */
   async createFeature(data: any) {
     const featureId = require('crypto').randomBytes(16).toString('hex');
     
@@ -643,9 +592,6 @@ export class AdminService {
     return feature;
   }
 
-  /**
-   * Get organization with enabled features
-   */
   async getOrganizationFeatures(orgId: string) {
     const organization = await prisma.organization.findUnique({
       where: { id: orgId },
@@ -668,9 +614,6 @@ export class AdminService {
     };
   }
 
-  /**
-   * Set organization feature override (HQ)
-   */
   async setOrganizationFeature(orgId: string, featureKey: string, enabled: boolean, config?: any) {
     const organization = await prisma.organization.findUnique({
       where: { id: orgId },

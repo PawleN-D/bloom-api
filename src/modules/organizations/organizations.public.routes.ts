@@ -9,7 +9,6 @@ export async function organizationsPublicRoutes(server: FastifyInstance) {
     subdomain: z.string().min(1),
   });
 
-  // GET /api/organizations/by-subdomain/:subdomain
   server.get('/by-subdomain/:subdomain', {
     schema: {
       tags: ['Organizations'],

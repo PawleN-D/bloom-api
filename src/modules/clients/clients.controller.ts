@@ -1,4 +1,3 @@
-// src/modules/clients/clients.controller.ts
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { ClientsService } from './clients.service'
 
@@ -67,7 +66,6 @@ export async function createClient(
   try {
     const data = request.body as CreateClientBody
 
-    // Convert arrays to JSON strings for storage
     const clientData = {
       ...data,
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,

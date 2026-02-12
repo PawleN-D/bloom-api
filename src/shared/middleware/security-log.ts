@@ -34,6 +34,5 @@ export async function securityLogHook(
       },
     });
   } catch {
-    // Best-effort logging to avoid blocking responses
   }
 }
