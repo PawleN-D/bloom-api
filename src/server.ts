@@ -3,10 +3,25 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import { config } from "./config/env";
 import { setupSwagger } from "./config/swagger";
+import {
+  defaultDatabaseRequestContext,
+  setDatabaseRequestContext,
+} from "./shared/database/request-context";
 
 const server = Fastify({
   logger: {
     level: config.logLevel,
+    redact: {
+      paths: [
+        "req.headers.authorization",
+        "req.headers.cookie",
+        "headers.authorization",
+        "headers.cookie",
+        "body.password",
+        "body.pin",
+      ],
+      censor: "[REDACTED]",
+    },
     transport:
       config.nodeEnv === "development"
         ? {
@@ -22,11 +37,12 @@ const server = Fastify({
 });
 
 async function registerPlugins() {
+  server.addHook("onRequest", async () => {
+    setDatabaseRequestContext({ ...defaultDatabaseRequestContext });
+  });
+
   await server.register(cors, {
-    origin:
-      config.nodeEnv === "development"
-        ? true
-        : config.frontendUrls,
+    origin: config.nodeEnv === "development" ? true : config.frontendUrls,
     credentials: true,
   });
 
@@ -63,11 +79,17 @@ async function registerRoutes() {
   const { usersRoutes } = await import("./modules/users/users.routes");
   await server.register(usersRoutes, { prefix: "/api/users" });
 
-  const { organizationsRoutes } = await import("./modules/organizations/organizations.routes");
+  const { organizationsRoutes } = await import(
+    "./modules/organizations/organizations.routes"
+  );
   await server.register(organizationsRoutes, { prefix: "/api/organization" });
 
-  const { organizationsPublicRoutes } = await import("./modules/organizations/organizations.public.routes");
-  await server.register(organizationsPublicRoutes, { prefix: "/api/organizations" });
+  const { organizationsPublicRoutes } = await import(
+    "./modules/organizations/organizations.public.routes"
+  );
+  await server.register(organizationsPublicRoutes, {
+    prefix: "/api/organizations",
+  });
 
   const { adminRoutes } = await import("./modules/admin/admin.routes");
   await server.register(adminRoutes, { prefix: "/api/admin" });
@@ -75,8 +97,12 @@ async function registerRoutes() {
   const { hqRoutes } = await import("./modules/hq/hq.routes");
   await server.register(hqRoutes, { prefix: "/api/hq" });
 
-  const { backofficeOrganizationsRoutes } = await import("./modules/backoffice/organizations/organizations.routes");
-  await server.register(backofficeOrganizationsRoutes, { prefix: "/api/backoffice" });
+  const { backofficeOrganizationsRoutes } = await import(
+    "./modules/backoffice/organizations/organizations.routes"
+  );
+  await server.register(backofficeOrganizationsRoutes, {
+    prefix: "/api/backoffice",
+  });
 
   const { reportsRoutes } = await import("./modules/reports/reports.routes");
   await server.register(reportsRoutes, { prefix: "/api/reports" });
@@ -84,9 +110,29 @@ async function registerRoutes() {
   const { managerRoutes } = await import("./modules/manager/manager.routes");
   await server.register(managerRoutes, { prefix: "/api/manager" });
 
-  const { notificationsRoutes } = await import("./modules/notifications/notifications.routes");
+  const { notificationsRoutes } = await import(
+    "./modules/notifications/notifications.routes"
+  );
   await server.register(notificationsRoutes, { prefix: "/api/notifications" });
+}
 
+let isShuttingDown = false;
+
+async function gracefulShutdown(signal: string, exitCode = 0) {
+  if (isShuttingDown) {
+    return;
+  }
+  isShuttingDown = true;
+
+  server.log.info({ signal }, "Shutdown initiated");
+  try {
+    await server.close();
+    server.log.info("Server closed");
+  } catch (error) {
+    server.log.error({ err: error }, "Error while closing server");
+  } finally {
+    process.exit(exitCode);
+  }
 }
 
 async function start() {
@@ -97,27 +143,35 @@ async function start() {
 
     await server.listen({
       port: config.port,
-      host: "0.0.0.0", // Important for Railway deployment
+      host: "0.0.0.0",
     });
 
-    console.log(`🚀 Server running on http://localhost:${config.port}`);
-    console.log(`📝 Environment: ${config.nodeEnv}`);
-
-    server.printRoutes();
+    server.log.info(
+      { port: config.port, env: config.nodeEnv },
+      "Server started"
+    );
+    server.log.debug({ routes: server.printRoutes() }, "Registered routes");
   } catch (err) {
-    server.log.error(err);
-    process.exit(1);
+    server.log.fatal({ err }, "Failed to start server");
+    await gracefulShutdown("startup-failure", 1);
   }
 }
-
 
 const signals = ["SIGINT", "SIGTERM"];
 signals.forEach((signal) => {
   process.on(signal, async () => {
-    console.log(`\n${signal} received, closing server...`);
-    await server.close();
-    process.exit(0);
+    await gracefulShutdown(signal, 0);
   });
+});
+
+process.on("unhandledRejection", async (reason) => {
+  server.log.fatal({ err: reason }, "Unhandled promise rejection");
+  await gracefulShutdown("unhandledRejection", 1);
+});
+
+process.on("uncaughtException", async (error) => {
+  server.log.fatal({ err: error }, "Uncaught exception");
+  await gracefulShutdown("uncaughtException", 1);
 });
 
 start();

@@ -12,7 +12,7 @@ export async function createOrganization(overrides: Partial<Organization> = {}) 
       id,
       name,
       slug,
-      subdomain: overrides.subdomain || null,
+      subdomain: overrides.subdomain || slug,
       logo: overrides.logo || null,
       primaryColor: overrides.primaryColor || '#0F766E',
       plan: overrides.plan || SubscriptionPlan.STARTER,

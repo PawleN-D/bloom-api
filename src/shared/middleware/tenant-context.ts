@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { Organization, UserRole } from '@prisma/client';
 import { prisma } from '../database/prisma';
+import { setDatabaseRequestContext } from '../database/request-context';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -31,6 +32,11 @@ export async function tenantContext(
   if (user?.role === 'SUPER_ADMIN') {
     const orgId = request.headers['x-organization-id'];
     if (!orgId || Array.isArray(orgId)) {
+      setDatabaseRequestContext({
+        tenantId: null,
+        userId: user.id,
+        bypassRls: true,
+      });
       return;
     }
 
@@ -53,6 +59,11 @@ export async function tenantContext(
     }
 
     request.organization = org;
+    setDatabaseRequestContext({
+      tenantId: org.id,
+      userId: user.id,
+      bypassRls: false,
+    });
     return;
   }
   
@@ -82,6 +93,11 @@ export async function tenantContext(
   }
   
   request.organization = org;
+  setDatabaseRequestContext({
+    tenantId: org.id,
+    userId: user.id,
+    bypassRls: false,
+  });
 }
 
 export function withTenantIsolation<T extends Record<string, any>>(

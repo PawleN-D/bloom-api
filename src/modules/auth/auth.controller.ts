@@ -3,6 +3,7 @@ import { AuthService } from './auth.service'
 import { UserRole } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../../shared/database/prisma'
+import { setDatabaseRequestContext } from '../../shared/database/request-context'
 
 const authService = new AuthService()
 
@@ -42,6 +43,12 @@ export async function register(
   reply: FastifyReply
 ) {
   try {
+    setDatabaseRequestContext({
+      tenantId: null,
+      userId: null,
+      bypassRls: true,
+    })
+
     const parsed = registerSchema.safeParse(request.body)
     if (!parsed.success) {
       return reply.status(400).send({
@@ -89,6 +96,12 @@ export async function login(
   reply: FastifyReply
 ) {
   try {
+    setDatabaseRequestContext({
+      tenantId: null,
+      userId: null,
+      bypassRls: true,
+    })
+
     const parsed = loginSchema.safeParse(request.body)
     if (!parsed.success) {
       return reply.status(400).send({
@@ -177,6 +190,12 @@ export async function setupAccount(
   reply: FastifyReply
 ) {
   try {
+    setDatabaseRequestContext({
+      tenantId: null,
+      userId: null,
+      bypassRls: true,
+    })
+
     const parsed = setupSchema.safeParse(request.body)
     if (!parsed.success) {
       return reply.status(400).send({

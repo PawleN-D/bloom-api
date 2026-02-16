@@ -1,5 +1,5 @@
 import { FastifyRequest } from 'fastify';
-import { prisma } from '../../shared/database/prisma';
+import { prisma, runInTenantTransaction } from '../../shared/database/prisma';
 import { withTenantIsolation } from '../../shared/middleware/tenant-context';
 
 export class NotesService {
@@ -216,15 +216,16 @@ export class NotesService {
     const newNoteId = require('crypto').randomBytes(16).toString('hex');
     const now = new Date();
 
-    const [, versionNote] = await prisma.$transaction([
-      prisma.note.update({
+    const versionNote = await runInTenantTransaction(async (tx) => {
+      await tx.note.update({
         where: { id: existing.id },
         data: {
           isLatest: false,
           updatedAt: now,
         },
-      }),
-      prisma.note.create({
+      });
+
+      return tx.note.create({
         data: {
           id: newNoteId,
           content: data.content,
@@ -258,8 +259,8 @@ export class NotesService {
             },
           },
         },
-      }),
-    ]);
+      });
+    });
 
     return versionNote;
   }

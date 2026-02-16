@@ -257,7 +257,7 @@ model Client {
   emergencyContactRelation String?
   isActive                 Boolean   @default(true)
   createdAt                DateTime  @default(now())
-  updatedAt                DateTime
+  updatedAt                DateTime  @updatedAt
   
   assignments              Assignment[]
   files                    File[]
@@ -276,7 +276,7 @@ model Assignment {
   clientId  String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime
+  updatedAt DateTime @updatedAt
   
   client    Client   @relation(fields: [clientId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
@@ -303,7 +303,7 @@ model Task {
   isRecurring      Boolean      @default(false)
   dueDate          DateTime?
   createdAt        DateTime     @default(now())
-  updatedAt        DateTime
+  updatedAt        DateTime     @updatedAt
   
   taskCompletions  TaskCompletion[]
   client           Client       @relation(fields: [clientId], references: [id])
@@ -356,6 +356,7 @@ model AuditAccessLog {
   managerId      String
   status         AuditAccessStatus
   createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   resident       Client            @relation(fields: [residentId], references: [id], onDelete: Restrict)
@@ -378,6 +379,7 @@ model SecurityLog {
   ipAddress      String?
   userAgent      String?
   createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -446,6 +448,8 @@ model DiscountRedemption {
   discountId      String
   subscriptionId  String
   organizationId  String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
   redeemedAt      DateTime     @default(now())
 
   discount        Discount     @relation(fields: [discountId], references: [id], onDelete: Cascade)
@@ -491,6 +495,7 @@ model InvoiceLineItem {
   quantity    Int      @default(1)
   amountCents Int
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
@@ -529,6 +534,7 @@ model SupportNote {
   body       String
   internal   Boolean  @default(true)
   createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   author     User?         @relation(fields: [authorId], references: [id], onDelete: SetNull)
@@ -557,7 +563,7 @@ model Note {
   isSignificant     Boolean      @default(false)
   originalCreatedAt DateTime     @default(now())
   createdAt         DateTime     @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime     @updatedAt
   
   user              User         @relation(fields: [authorId], references: [id])
   client            Client       @relation(fields: [clientId], references: [id])
@@ -585,7 +591,7 @@ model File {
   url          String
   clientId     String
   createdAt    DateTime @default(now())
-  updatedAt    DateTime
+  updatedAt    DateTime @updatedAt
   
   client       Client   @relation(fields: [clientId], references: [id])
   

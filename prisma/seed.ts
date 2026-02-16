@@ -1,5 +1,4 @@
 import {
-  PrismaClient,
   FeatureCategory,
   NoteCategory,
   SubscriptionPlan,
@@ -12,8 +11,7 @@ import {
 } from '@prisma/client'
 import bcrypt from 'bcrypt'
 import { DEFAULT_BILLING_CYCLE_DAYS, PLAN_CATALOG } from '../src/shared/constants/plans'
-
-const prisma = new PrismaClient()
+import { prisma } from '../src/shared/database/prisma'
 
 async function main() {
   console.log('Seeding database...')

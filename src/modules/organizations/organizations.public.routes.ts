@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../shared/database/prisma';
+import { setDatabaseRequestContext } from '../../shared/database/request-context';
 import { validateZod } from '../../shared/validation/zod';
 import { isValidSubdomain } from '../../shared/utils/subdomain';
 
@@ -22,6 +23,12 @@ export async function organizationsPublicRoutes(server: FastifyInstance) {
       },
     },
   }, async (request: any, reply) => {
+    setDatabaseRequestContext({
+      tenantId: null,
+      userId: null,
+      bypassRls: true,
+    });
+
     const params = validateZod(paramsSchema, request.params, reply);
     if (!params) return;
 
