@@ -8,6 +8,7 @@ import {
 import { prisma } from '../../shared/database/prisma';
 import { config } from '../../config/env';
 import { DEFAULT_BILLING_CYCLE_DAYS, PLAN_CATALOG } from '../../shared/constants/plans';
+import { mailService } from '@/services/MailService';
 import {
   generateUniqueSubdomain,
   getOrganizationUrl,
@@ -152,6 +153,16 @@ export class HQService {
         updatedAt: now,
       },
     });
+
+    mailService
+      .sendWelcomeEmail({
+        organizationId: organization.id,
+        manager_name: 'Org Admin',
+        company_name: organization.name,
+        slug: organization.slug,
+        manager_email: adminUser.email,
+      })
+      .catch((error) => console.error('[HQService] welcome email trigger', error));
 
     await this.sendOnboardingInvite(adminUser.email, invitationToken, organization.name);
 

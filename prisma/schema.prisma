@@ -109,6 +109,12 @@ enum AuditAccessStatus {
   FAILED
 }
 
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 // ============================================================================
 // NEW MODELS (Multi-Tenancy)
 // ============================================================================
@@ -147,6 +153,7 @@ model Organization {
   invoices       Invoice[]
   discountRedemptions DiscountRedemption[]
   supportTickets SupportTicket[]
+  emailLogs      EmailLog[]
   
   @@index([slug])
   @@index([subdomain])
@@ -205,10 +212,12 @@ model User {
   invitationToken String? @unique
   tokenExpires   DateTime?
   status         UserStatus @default(PENDING)
+  mustResetPw    Boolean    @default(false)
   dbsExpiresAt   DateTime?
   trainingExpiresAt DateTime?
   firstName      String
   lastName       String
+  phone          String?
   role           UserRole @default(WORKER)
   
   // Multi-tenancy field
@@ -389,6 +398,25 @@ model SecurityLog {
   @@index([createdAt])
   @@index([action])
   @@map("security_logs")
+}
+
+model EmailLog {
+  id             String      @id @default(cuid())
+  organizationId String
+  recipient      String
+  subject        String
+  template       String
+  status         EmailStatus @default(PENDING)
+  providerMsgId  String?
+  errorMessage   String?
+  sentAt         DateTime?
+  createdAt      DateTime    @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("email_logs")
 }
 
 model Subscription {
