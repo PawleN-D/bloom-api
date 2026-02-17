@@ -52,6 +52,7 @@ export class NotificationsService {
       const dueSoonTasks = await prisma.task.findMany({
         where: withTenantIsolation(request, {
           assignedToId: user.id,
+          deletedAt: null,
           dueDate: { gte: now, lte: dueSoonEnd },
         }),
         include: {
@@ -115,6 +116,7 @@ export class NotificationsService {
       const updatedTasks = await prisma.task.findMany({
         where: withTenantIsolation(request, {
           assignedToId: user.id,
+          deletedAt: null,
           updatedAt: { gte: recentWindow },
         }),
         include: {
@@ -146,6 +148,7 @@ export class NotificationsService {
         where: withTenantIsolation(request, {
           isLatest: true,
           isSignificant: true,
+          deletedAt: null,
           createdAt: { gte: handoverStart },
         }),
         include: {
@@ -175,6 +178,7 @@ export class NotificationsService {
 
       const missedTasks = await prisma.task.findMany({
         where: withTenantIsolation(request, {
+          deletedAt: null,
           assignedToId: { not: null },
           dueDate: { lt: now, gte: recentWindow },
         }),

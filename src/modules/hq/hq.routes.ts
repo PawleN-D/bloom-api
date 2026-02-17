@@ -2,7 +2,6 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authMiddleware } from '../../shared/middleware/auth.middleware';
 import { isBloomHQAdmin } from '../../shared/middleware/is-bloom-hq-admin';
-import { securityLogHook } from '../../shared/middleware/security-log';
 import { validateZod } from '../../shared/validation/zod';
 import { prisma } from '../../shared/database/prisma';
 import { HQAnalyticsService } from './hq.analytics.service';
@@ -20,8 +19,6 @@ export async function hqRoutes(server: FastifyInstance) {
   const supportService = new HQSupportService();
   const securityService = new HQSecurityService();
   const adminService = new AdminService();
-
-  server.addHook('onResponse', securityLogHook);
 
   const onboardSchema = z.object({
     orgName: z.string().min(1),

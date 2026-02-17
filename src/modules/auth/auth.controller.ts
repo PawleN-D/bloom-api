@@ -83,6 +83,13 @@ export async function register(
       })
     }
 
+    if (error instanceof Error && error.message === 'This role requires an invitation') {
+      return reply.status(403).send({
+        success: false,
+        error: error.message,
+      })
+    }
+
     request.log.error(error)
     return reply.status(500).send({
       success: false,

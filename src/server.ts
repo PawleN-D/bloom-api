@@ -3,10 +3,12 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import { config } from "./config/env";
 import { setupSwagger } from "./config/swagger";
+import { startComplianceJobs, stopComplianceJobs } from "./shared/jobs";
 import {
   defaultDatabaseRequestContext,
   setDatabaseRequestContext,
 } from "./shared/database/request-context";
+import { securityLogHook } from "./shared/middleware/security-log";
 
 const server = Fastify({
   logger: {
@@ -40,6 +42,7 @@ async function registerPlugins() {
   server.addHook("onRequest", async () => {
     setDatabaseRequestContext({ ...defaultDatabaseRequestContext });
   });
+  server.addHook("onResponse", securityLogHook);
 
   await server.register(cors, {
     origin: config.nodeEnv === "development" ? true : config.frontendUrls,
@@ -114,6 +117,18 @@ async function registerRoutes() {
     "./modules/notifications/notifications.routes"
   );
   await server.register(notificationsRoutes, { prefix: "/api/notifications" });
+
+  const { incidentsRoutes } = await import("./modules/incidents/incidents.routes");
+  await server.register(incidentsRoutes, { prefix: "/api/incidents" });
+
+  const { complianceRoutes } = await import("./modules/compliance/compliance.routes");
+  await server.register(complianceRoutes, { prefix: "/api/compliance" });
+
+  const { medicationsRoutes } = await import("./modules/medications/medications.routes");
+  await server.register(medicationsRoutes, { prefix: "/api/medications" });
+
+  const { auditTrailRoutes } = await import("./modules/audit-trail/audit-trail.routes");
+  await server.register(auditTrailRoutes, { prefix: "/api/audit-trail" });
 }
 
 let isShuttingDown = false;
@@ -127,6 +142,7 @@ async function gracefulShutdown(signal: string, exitCode = 0) {
   server.log.info({ signal }, "Shutdown initiated");
   try {
     await server.close();
+    await stopComplianceJobs();
     server.log.info("Server closed");
   } catch (error) {
     server.log.error({ err: error }, "Error while closing server");
@@ -144,6 +160,10 @@ async function start() {
     await server.listen({
       port: config.port,
       host: "0.0.0.0",
+    });
+
+    await startComplianceJobs(server.log).catch((error) => {
+      server.log.error({ err: error }, "Failed to start compliance jobs");
     });
 
     server.log.info(

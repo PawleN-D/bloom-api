@@ -84,5 +84,8 @@ export function buildRequest(params: { user: any; organization: any }) {
   return {
     user: params.user,
     organization: params.organization,
+    headers: {},
+    ip: '127.0.0.1',
+    id: `req_${randomBytes(8).toString('hex')}`,
   } as any
 }

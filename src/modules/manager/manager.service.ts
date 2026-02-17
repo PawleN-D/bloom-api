@@ -1,11 +1,13 @@
 import { FastifyRequest } from 'fastify';
 import {
+  IncidentStatus,
   NoteCategory,
   TaskCategory,
   TaskCompletionStatus,
   UserRole,
 } from '@prisma/client';
 import { prisma } from '../../shared/database/prisma';
+import { complianceService } from '../compliance/compliance.service';
 import { withTenantIsolation } from '../../shared/middleware/tenant-context';
 
 type RiskSummary = {
@@ -117,6 +119,7 @@ export class ManagerService {
         },
         task: {
           organizationId: request.organization.id,
+          deletedAt: null,
           category: {
             in: [TaskCategory.MEAL_PREP, TaskCategory.HEALTH_MONITORING],
           },
@@ -203,20 +206,17 @@ export class ManagerService {
         },
         task: {
           organizationId: request.organization.id,
+          deletedAt: null,
           category: TaskCategory.MEDICATION,
         },
       },
     });
 
-    const incidentCount = await prisma.note.count({
-      where: withTenantIsolation(request, {
-        category: NoteCategory.INCIDENT,
-        createdAt: {
-          gte: window.start,
-          lte: window.end,
-        },
-      }),
-    });
+    const incidentCount = await complianceService.getIncidentCount(
+      request.organization.id,
+      window.start,
+      window.end
+    );
 
     return {
       window,
@@ -243,6 +243,7 @@ export class ManagerService {
         },
         task: {
           organizationId: request.organization.id,
+          deletedAt: null,
         },
       },
       select: {
@@ -329,96 +330,51 @@ export class ManagerService {
     const now = new Date();
     const windowEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-    const expiringStaff = await prisma.user.findMany({
-      where: withTenantIsolation(request, {
-        isActive: true,
-        OR: [
-          {
-            dbsExpiresAt: {
-              gte: now,
-              lte: windowEnd,
-            },
-          },
-          {
-            trainingExpiresAt: {
-              gte: now,
-              lte: windowEnd,
-            },
-          },
-        ],
-      }),
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        dbsExpiresAt: true,
-        trainingExpiresAt: true,
-      },
-      orderBy: [{ dbsExpiresAt: 'asc' }, { trainingExpiresAt: 'asc' }],
-    });
+    const [expiringCredentials, gaps] = await Promise.all([
+      complianceService.getExpiringCertifications(request.organization.id, 30),
+      complianceService.getComplianceGaps(request.organization.id),
+    ]);
 
-    const expiringCredentials = expiringStaff.map((staff) => {
-      const daysUntil = (date: Date | null) =>
-        date ? Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+    const criticalGapIds = gaps
+      .filter((gap: any) => gap.type === 'CRITICAL_TASK_EXCEPTION' && gap.entityType === 'TaskCompletion')
+      .map((gap: any) => gap.entityId)
+      .filter(Boolean) as string[];
 
-      return {
-        staffId: staff.id,
-        name: `${staff.firstName} ${staff.lastName}`,
-        role: staff.role,
-        dbsExpiresAt: staff.dbsExpiresAt,
-        trainingExpiresAt: staff.trainingExpiresAt,
-        daysUntilDbsExpiry: daysUntil(staff.dbsExpiresAt),
-        daysUntilTrainingExpiry: daysUntil(staff.trainingExpiresAt),
-      };
-    });
-
-    const criticalExceptions = await prisma.taskCompletion.findMany({
-      where: {
-        task: {
-          organizationId: request.organization.id,
-        },
-        OR: [
-          { criticalAlertFlagged: true },
-          {
-            status: {
-              in: [
-                TaskCompletionStatus.INCOMPLETE,
-                TaskCompletionStatus.REFUSED,
-              ],
-            },
+    const criticalExceptions = criticalGapIds.length
+      ? await prisma.taskCompletion.findMany({
+          where: {
+            id: { in: criticalGapIds },
           },
-        ],
-      },
-      include: {
-        task: {
-          select: {
-            id: true,
-            title: true,
-            category: true,
-            client: {
+          include: {
+            task: {
+              select: {
+                id: true,
+                title: true,
+                category: true,
+                client: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+              },
+            },
+            user: {
               select: {
                 id: true,
                 firstName: true,
                 lastName: true,
+                role: true,
               },
             },
           },
-        },
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            role: true,
+          orderBy: {
+            completedAt: 'desc',
           },
-        },
-      },
-      orderBy: {
-        completedAt: 'desc',
-      },
-      take: 10,
-    });
+          take: 10,
+        })
+      : [];
 
     return {
       window: { start: now, end: windowEnd },
@@ -451,11 +407,12 @@ export class ManagerService {
     const complianceStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const scheduleEnd = new Date(now.getTime() + 48 * 60 * 60 * 1000);
 
-    const [handoverNotes, incidentNotes, complianceTasks, scheduleTasks] = await Promise.all([
+    const [handoverNotes, incidentsRaw, complianceTasks, scheduleTasks] = await Promise.all([
       prisma.note.findMany({
         where: withTenantIsolation(request, {
           isLatest: true,
           isSignificant: true,
+          deletedAt: null,
           createdAt: {
             gte: handoverStart,
           },
@@ -477,16 +434,21 @@ export class ManagerService {
         orderBy: { createdAt: 'desc' },
         take: 25,
       }),
-      prisma.note.findMany({
+      prisma.incident.findMany({
         where: withTenantIsolation(request, {
-          isLatest: true,
-          category: NoteCategory.INCIDENT,
-          createdAt: {
+          reportedAt: {
             gte: incidentStart,
+          },
+          status: {
+            in: [
+              IncidentStatus.OPEN,
+              IncidentStatus.ACKNOWLEDGED,
+              IncidentStatus.UNDER_INVESTIGATION,
+            ],
           },
         }),
         include: {
-          user: {
+          reportedBy: {
             select: {
               firstName: true,
               lastName: true,
@@ -499,11 +461,12 @@ export class ManagerService {
             },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { reportedAt: 'desc' },
         take: 25,
       }),
       prisma.task.findMany({
         where: withTenantIsolation(request, {
+          deletedAt: null,
           category: {
             in: [TaskCategory.MEDICATION, TaskCategory.HEALTH_MONITORING],
           },
@@ -536,6 +499,7 @@ export class ManagerService {
       }),
       prisma.task.findMany({
         where: withTenantIsolation(request, {
+          deletedAt: null,
           assignedToId: null,
           dueDate: {
             gte: now,
@@ -575,22 +539,22 @@ export class ManagerService {
       };
     });
 
-    const incidents = incidentNotes.map((note) => {
-      const clientName = note.client
-        ? `${note.client.firstName || ''} ${note.client.lastName || ''}`.trim()
+    const incidents = incidentsRaw.map((incident) => {
+      const clientName = incident.client
+        ? `${incident.client.firstName || ''} ${incident.client.lastName || ''}`.trim()
         : 'Client';
-      const authorName = note.user
-        ? `${note.user.firstName || ''} ${note.user.lastName || ''}`.trim()
+      const authorName = incident.reportedBy
+        ? `${incident.reportedBy.firstName || ''} ${incident.reportedBy.lastName || ''}`.trim()
         : 'Staff member';
       return {
-        id: note.id,
+        id: incident.id,
         title: `Incident report: ${clientName || 'Client'}`,
         subtitle: authorName ? `Reported by ${authorName}` : undefined,
-        description: note.content,
-        createdAt: note.createdAt,
+        description: incident.description,
+        createdAt: incident.reportedAt,
         priority: 'URGENT',
-        status: 'OPEN',
-        actionUrl: '/notes',
+        status: incident.status,
+        actionUrl: '/incidents',
       };
     });
 

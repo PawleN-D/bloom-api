@@ -115,6 +115,76 @@ enum EmailStatus {
   FAILED
 }
 
+enum IncidentCategory {
+  MEDICATION_ERROR
+  FALL
+  INJURY
+  SAFEGUARDING
+  MISSED_CARE
+  EQUIPMENT_FAILURE
+  COMMUNICATION_BREAKDOWN
+  OTHER
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  OPEN
+  ACKNOWLEDGED
+  UNDER_INVESTIGATION
+  RESOLVED
+  CLOSED
+}
+
+enum AuditOperation {
+  CREATE
+  UPDATE
+  DELETE
+  ARCHIVE
+}
+
+enum ComplianceAlertType {
+  INCIDENT_SLA_BREACH
+  CERTIFICATION_EXPIRING
+  CARE_PLAN_STALE
+  CRITICAL_TASK_EXCEPTION
+}
+
+enum ComplianceAlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ComplianceAlertStatus {
+  OPEN
+  RESOLVED
+}
+
+enum MedicationRoute {
+  ORAL
+  SUBLINGUAL
+  TOPICAL
+  INJECTION
+  INHALED
+  RECTAL
+  OTHER
+}
+
+enum MedicationStatus {
+  SCHEDULED
+  ADMINISTERED
+  REFUSED
+  OMITTED
+  DELAYED
+}
+
 // ============================================================================
 // NEW MODELS (Multi-Tenancy)
 // ============================================================================
@@ -146,6 +216,7 @@ model Organization {
   clients     Client[]
   tasks       Task[]
   notes       Note[]
+  incidents   Incident[]
   organizationFeatures OrganizationFeature[]
   auditAccessLogs AuditAccessLog[]
   securityLogs   SecurityLog[]
@@ -154,6 +225,9 @@ model Organization {
   discountRedemptions DiscountRedemption[]
   supportTickets SupportTicket[]
   emailLogs      EmailLog[]
+  auditEvents    AuditEvent[]
+  complianceAlerts ComplianceAlert[]
+  medicationAdministrations MedicationAdministration[]
   
   @@index([slug])
   @@index([subdomain])
@@ -230,13 +304,19 @@ model User {
   
   assignments      Assignment[]
   notes            Note[]
+  reportedIncidents Incident[] @relation("IncidentReporter")
+  acknowledgedIncidents Incident[] @relation("IncidentAcknowledger")
+  closedIncidents Incident[] @relation("IncidentCloser")
   taskCompletions  TaskCompletion[]
   assignedTasks    Task[] @relation("TaskAssignee")
   securityLogs     SecurityLog[]
   auditAccessLogsManaged AuditAccessLog[] @relation("AuditAccessLogManager")
+  auditEvents     AuditEvent[]
   supportTicketsCreated SupportTicket[] @relation("SupportTicketCreator")
   supportTicketsAssigned SupportTicket[] @relation("SupportTicketAssignee")
   supportNotes SupportNote[]
+  administeredMedications MedicationAdministration[] @relation("MedicationAdministrator")
+  doubleCheckedMedications MedicationAdministration[] @relation("MedicationDoubleChecker")
   
   @@index([email])
   @@index([organizationId])
@@ -272,6 +352,8 @@ model Client {
   files                    File[]
   notes                    Note[]
   tasks                    Task[]
+  incidents                Incident[]
+  medicationAdministrations MedicationAdministration[]
   auditAccessLogs          AuditAccessLog[]
   
   @@index([lastName])
@@ -311,6 +393,9 @@ model Task {
   assignedToId     String?
   isRecurring      Boolean      @default(false)
   dueDate          DateTime?
+  deletedAt        DateTime?
+  deletedBy        String?
+  deletedReason    String?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   
@@ -322,6 +407,7 @@ model Task {
   @@index([assignedToId])
   @@index([dueDate])
   @@index([organizationId])
+  @@index([organizationId, deletedAt])
   @@map("tasks")
 }
 
@@ -417,6 +503,117 @@ model EmailLog {
   @@index([organizationId])
   @@index([status])
   @@map("email_logs")
+}
+
+model Incident {
+  id                String           @id @default(cuid())
+  organizationId    String
+  clientId          String?
+  reportedById      String
+  category          IncidentCategory
+  severity          IncidentSeverity
+  title             String
+  description       String
+  status            IncidentStatus   @default(OPEN)
+  reportedAt        DateTime         @default(now())
+  acknowledgedAt    DateTime?
+  acknowledgedBy    String?
+  closedAt          DateTime?
+  closedBy          String?
+  escalatedAt       DateTime?
+  slaDueAt          DateTime?
+  slaBreached       Boolean          @default(false)
+  resolution        String?
+  preventiveActions String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client            Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  reportedBy        User         @relation("IncidentReporter", fields: [reportedById], references: [id], onDelete: Restrict)
+  acknowledgedByUser User?       @relation("IncidentAcknowledger", fields: [acknowledgedBy], references: [id], onDelete: SetNull)
+  closedByUser      User?        @relation("IncidentCloser", fields: [closedBy], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, reportedAt])
+  @@index([organizationId, severity, status])
+  @@index([slaDueAt])
+  @@map("incidents")
+}
+
+model AuditEvent {
+  id             String         @id @default(cuid())
+  organizationId String
+  userId         String
+  entityType     String
+  entityId       String
+  operation      AuditOperation
+  fieldChanges   Json?
+  reason         String?
+  ipAddress      String?
+  userAgent      String?
+  requestId      String?
+  createdAt      DateTime       @default(now())
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, entityType, entityId])
+  @@index([organizationId, userId, createdAt])
+  @@index([createdAt])
+  @@map("audit_events")
+}
+
+model ComplianceAlert {
+  id             String                @id @default(cuid())
+  organizationId String
+  type           ComplianceAlertType
+  severity       ComplianceAlertSeverity @default(MEDIUM)
+  status         ComplianceAlertStatus @default(OPEN)
+  title          String
+  description    String
+  entityType     String?
+  entityId       String?
+  metadata       Json?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  resolvedAt     DateTime?
+
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, type, createdAt])
+  @@index([entityType, entityId])
+  @@map("compliance_alerts")
+}
+
+model MedicationAdministration {
+  id                  String           @id @default(cuid())
+  organizationId      String
+  clientId            String
+  administeredById    String?
+  medicationName      String
+  dosage              String
+  route               MedicationRoute
+  scheduledTime       DateTime
+  administeredTime    DateTime?
+  status              MedicationStatus
+  refusalReason       String?
+  omissionReason      String?
+  lateAdministration  Boolean          @default(false)
+  doubleCheckRequired Boolean          @default(false)
+  doubleCheckedBy     String?
+  notes               String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  organization        Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client              Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  administeredBy      User?            @relation("MedicationAdministrator", fields: [administeredById], references: [id], onDelete: SetNull)
+  doubleChecker       User?            @relation("MedicationDoubleChecker", fields: [doubleCheckedBy], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, clientId, scheduledTime])
+  @@index([organizationId, status])
+  @@map("medication_administrations")
 }
 
 model Subscription {
@@ -589,6 +786,9 @@ model Note {
   isLatest          Boolean      @default(true)
   editReason        String?
   isSignificant     Boolean      @default(false)
+  deletedAt         DateTime?
+  deletedBy         String?
+  deletedReason     String?
   originalCreatedAt DateTime     @default(now())
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
@@ -607,6 +807,7 @@ model Note {
   @@index([isLatest])
   @@index([isSignificant])
   @@index([organizationId])
+  @@index([organizationId, deletedAt])
   @@map("notes")
 }
 

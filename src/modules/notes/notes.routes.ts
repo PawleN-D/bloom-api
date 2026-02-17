@@ -17,6 +17,11 @@ export async function notesRoutes(server: FastifyInstance) {
     clientId: z.string().min(1).optional(),
     authorId: z.string().min(1).optional(),
     search: z.string().min(1).optional(),
+    includeArchived: z.preprocess((value) => {
+      if (value === 'true') return true;
+      if (value === 'false') return false;
+      return value;
+    }, z.boolean().optional()),
     significantOnly: z.preprocess((value) => {
       if (value === 'true') return true;
       if (value === 'false') return false;
@@ -41,6 +46,10 @@ export async function notesRoutes(server: FastifyInstance) {
     editReason: z.string().min(1),
     category: z.enum(['PROGRESS', 'OBSERVATION', 'INCIDENT', 'COMMUNICATION', 'GENERAL']).optional(),
     isSignificant: z.boolean().optional(),
+  }).strict();
+
+  const deleteNoteSchema = z.object({
+    reason: z.string().min(1).optional(),
   }).strict();
 
   server.get('/', {
@@ -166,6 +175,12 @@ export async function notesRoutes(server: FastifyInstance) {
   server.delete('/:id', {
     schema: {
       tags: ['Notes'],
+      body: {
+        type: 'object',
+        properties: {
+          reason: { type: 'string' },
+        },
+      },
     },
     preHandler: [
       authMiddleware,
@@ -176,7 +191,9 @@ export async function notesRoutes(server: FastifyInstance) {
     try {
       const params = validateZod(idParamSchema, request.params, reply);
       if (!params) return;
-      const result = await notesService.deleteNote(request, params.id);
+      const body = validateZod(deleteNoteSchema, request.body ?? {}, reply);
+      if (!body) return;
+      const result = await notesService.deleteNote(request, params.id, body.reason);
       return reply.send(result);
     } catch (error: any) {
       const status = error.message === 'Note not found' ? 404 : 500;

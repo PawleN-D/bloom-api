@@ -17,6 +17,15 @@ export interface UserInvitePayload {
   temp_password: string;
 }
 
+export interface IncidentEscalationPayload {
+  organizationId: string;
+  incidentId: string;
+  title: string;
+  severity: string;
+  recipientEmail: string;
+  organizationName?: string | null;
+}
+
 export class MailService {
   private async sendViaResend(params: {
     to: string;
@@ -111,6 +120,32 @@ export class MailService {
       subject: 'Your Bloom account is ready',
       template: 'user_invite',
       html: buildUserInviteEmail(payload),
+    });
+  }
+
+  async sendIncidentEscalationEmail(payload: IncidentEscalationPayload) {
+    const title = payload.title || 'Incident escalation';
+    const organizationName = payload.organizationName || 'Organization';
+
+    await this.send({
+      organizationId: payload.organizationId,
+      recipient: payload.recipientEmail,
+      subject: `SLA breach: ${title}`,
+      template: 'incident_escalation',
+      html: `
+        <html>
+          <body style="font-family: sans-serif; background: #F7F5F2; padding: 24px;">
+            <div style="max-width: 560px; margin: 0 auto; background: #fff; border-radius: 8px; padding: 24px;">
+              <h2 style="margin-top: 0; color: #B91C1C;">Incident SLA Breach</h2>
+              <p><strong>Organization:</strong> ${organizationName}</p>
+              <p><strong>Severity:</strong> ${payload.severity}</p>
+              <p><strong>Incident:</strong> ${title}</p>
+              <p><strong>Incident ID:</strong> ${payload.incidentId}</p>
+              <p>This incident has exceeded its SLA response time and requires immediate review.</p>
+            </div>
+          </body>
+        </html>
+      `,
     });
   }
 }
