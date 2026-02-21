@@ -2,13 +2,15 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authMiddleware } from '../../shared/middleware/auth.middleware';
 import { isBloomHQAdmin } from '../../shared/middleware/is-bloom-hq-admin';
-import { securityLogHook } from '../../shared/middleware/security-log';
 import { validateZod } from '../../shared/validation/zod';
+import { prisma } from '../../shared/database/prisma';
 import { HQAnalyticsService } from './hq.analytics.service';
 import { HQBillingService } from './hq.billing.service';
 import { HQSecurityService } from './hq.security.service';
 import { HQSupportService } from './hq.support.service';
 import { HQService } from './hq.service';
+import { AdminService } from '../admin/admin.service';
+import { userBulkService } from '@/services/UserBulkService';
 
 export async function hqRoutes(server: FastifyInstance) {
   const hqService = new HQService();
@@ -16,8 +18,7 @@ export async function hqRoutes(server: FastifyInstance) {
   const analyticsService = new HQAnalyticsService();
   const supportService = new HQSupportService();
   const securityService = new HQSecurityService();
-
-  server.addHook('onResponse', securityLogHook);
+  const adminService = new AdminService();
 
   const onboardSchema = z.object({
     orgName: z.string().min(1),
@@ -26,16 +27,47 @@ export async function hqRoutes(server: FastifyInstance) {
     subdomain: z.string().min(1).optional(),
   });
 
+  const dateSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
+    message: 'Invalid date',
+  });
+
+  const createOrganizationSchema = z.object({
+    name: z.string().min(1),
+    slug: z.string().min(1).optional(),
+    subdomain: z.string().min(1).optional(),
+    manager_name: z.string().min(1).optional(),
+    manager_email: z.string().email().optional(),
+    logo: z.string().min(1).optional(),
+    primaryColor: z.string().min(1).optional(),
+    plan: z.enum(['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE']).optional(),
+    billingEmail: z.string().email().optional(),
+    maxUsers: z.number().int().positive().optional(),
+    maxClients: z.number().int().positive().optional(),
+    trialEndsAt: z.union([dateSchema, z.null()]).optional(),
+  }).strict();
+
+  const bulkUsersParamsSchema = z.object({
+    id: z.string().min(1),
+  });
+
+  const bulkUsersBodySchema = z.object({
+    users: z.array(
+      z.object({
+        first_name: z.string().min(1),
+        last_name: z.string().min(1),
+        email: z.string().email(),
+        role: z.enum(['care_worker', 'manager', 'admin']),
+        phone: z.string().min(1).optional(),
+      }).strict()
+    ),
+  }).strict();
+
   const planSchema = z.object({
     plan: z.enum(['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE']),
   });
 
   const orgIdParamsSchema = z.object({
     orgId: z.string().min(1),
-  });
-
-  const dateSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
-    message: 'Invalid date',
   });
 
   const securityLogsQuerySchema = z.object({
@@ -96,6 +128,106 @@ export async function hqRoutes(server: FastifyInstance) {
     try {
       const result = await hqService.onboardOrganization(parsed.data);
       return reply.status(201).send({ data: result });
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
+    }
+  });
+
+  server.post('/organizations', {
+    schema: {
+      tags: ['HQ'],
+      summary: 'Create organization',
+      body: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string' },
+          slug: { type: 'string' },
+          subdomain: { type: 'string' },
+          manager_name: { type: 'string' },
+          manager_email: { type: 'string', format: 'email' },
+          logo: { type: 'string' },
+          primaryColor: { type: 'string' },
+          plan: { type: 'string', enum: ['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE'] },
+          billingEmail: { type: 'string', format: 'email' },
+          maxUsers: { type: 'number' },
+          maxClients: { type: 'number' },
+          trialEndsAt: { type: ['string', 'null'] },
+        },
+      },
+    },
+    preHandler: [authMiddleware, isBloomHQAdmin],
+  }, async (request, reply) => {
+    try {
+      const body = validateZod(createOrganizationSchema, request.body, reply);
+      if (!body) return;
+      const organization = await adminService.createOrganization(body);
+      return reply.status(201).send({ data: organization });
+    } catch (error: any) {
+      return reply.status(500).send({ error: error.message });
+    }
+  });
+
+  server.post('/organizations/:id/users/bulk', {
+    schema: {
+      tags: ['HQ'],
+      summary: 'Bulk create organization users',
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['users'],
+        properties: {
+          users: {
+            type: 'array',
+            items: {
+              type: 'object',
+              required: ['first_name', 'last_name', 'email', 'role'],
+              properties: {
+                first_name: { type: 'string' },
+                last_name: { type: 'string' },
+                email: { type: 'string', format: 'email' },
+                role: { type: 'string', enum: ['care_worker', 'manager', 'admin'] },
+                phone: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+    },
+    preHandler: [authMiddleware, isBloomHQAdmin],
+  }, async (request, reply) => {
+    const params = validateZod(bulkUsersParamsSchema, request.params, reply);
+    if (!params) return;
+
+    const body = validateZod(bulkUsersBodySchema, request.body, reply);
+    if (!body) return;
+
+    if (!body.users.length) {
+      return reply.status(400).send({ message: 'No users provided' });
+    }
+
+    if (body.users.length > 500) {
+      return reply.status(400).send({ message: 'Max 500 users per import' });
+    }
+
+    const organization = await prisma.organization.findUnique({
+      where: { id: params.id },
+      select: { id: true },
+    });
+
+    if (!organization) {
+      return reply.status(404).send({ message: 'Organization not found' });
+    }
+
+    try {
+      const result = await userBulkService.createBulk(params.id, body.users);
+      return reply.status(201).send(result);
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });
     }

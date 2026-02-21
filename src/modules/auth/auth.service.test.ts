@@ -55,17 +55,8 @@ describe('AuthService', () => {
       ).rejects.toThrow('Email already exists')
     })
 
-    it('should create users with different roles', async () => {
+    it('should reject non-worker self-registration roles', async () => {
       const org = await createOrganization({ name: 'Auth Org' })
-      const workerData = {
-        email: 'unique-worker@test.com',
-        password: 'SecurePass123!',
-        firstName: 'Worker',
-        lastName: 'One',
-        role: UserRole.WORKER,
-        organizationId: org.id,
-      }
-
       const adminData = {
         email: 'unique-admin@test.com',
         password: 'SecurePass123!',
@@ -75,11 +66,9 @@ describe('AuthService', () => {
         organizationId: org.id,
       }
 
-      const worker = await authService.registerUser(workerData)
-      const admin = await authService.registerUser(adminData)
-
-      expect(worker.role).toBe(UserRole.WORKER)
-      expect(admin.role).toBe(UserRole.ADMIN)
+      await expect(authService.registerUser(adminData)).rejects.toThrow(
+        'This role requires an invitation'
+      )
     })
 
     it('should hash different passwords differently', async () => {
@@ -185,7 +174,7 @@ describe('AuthService', () => {
         password: 'SecurePass123!',
         firstName: 'JWT',
         lastName: 'User',
-        role: UserRole.ADMIN,
+        role: UserRole.WORKER,
         organizationId: org.id,
       }
       await authService.registerUser(userData)
@@ -194,7 +183,7 @@ describe('AuthService', () => {
 
       const verified = await authService.verifyToken(result.token)
       expect(verified.email).toBe(userData.email)
-      expect(verified.role).toBe(UserRole.ADMIN)
+      expect(verified.role).toBe(UserRole.WORKER)
     })
   })
 

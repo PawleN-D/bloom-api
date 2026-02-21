@@ -1,29 +1,57 @@
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../src/shared/database/prisma'
+import { setDatabaseRequestContext } from '../src/shared/database/request-context'
 
-const prisma = new PrismaClient()
+jest.setTimeout(120000)
+
+const bypassContext = {
+  tenantId: null,
+  userId: null,
+  bypassRls: true,
+}
 
 beforeAll(async () => {
+  setDatabaseRequestContext(bypassContext)
   // Connect to test database
   await prisma.$connect()
 })
 
 afterAll(async () => {
+  setDatabaseRequestContext(bypassContext)
   // Clean up and disconnect
   await prisma.$disconnect()
 })
 
 afterEach(async () => {
-  // Clean database after each test - delete in correct order to avoid FK constraints
-  await prisma.taskCompletion.deleteMany({})
-  await prisma.task.deleteMany({})
-  await prisma.note.deleteMany({})
-  await prisma.file.deleteMany({})
-  await prisma.assignment.deleteMany({})
-  await prisma.client.deleteMany({})
-  await prisma.user.deleteMany({})
-  await prisma.organizationFeature.deleteMany({})
-  await prisma.feature.deleteMany({})
-  await prisma.organization.deleteMany({})
+  setDatabaseRequestContext(bypassContext)
+  // Clean database after each test in one statement to avoid slow multi-transaction teardown.
+  await prisma.$executeRawUnsafe(`
+    TRUNCATE TABLE
+      "task_completions",
+      "medication_administrations",
+      "tasks",
+      "notes",
+      "incidents",
+      "audit_events",
+      "compliance_alerts",
+      "audit_access_logs",
+      "security_logs",
+      "email_logs",
+      "files",
+      "assignments",
+      "support_notes",
+      "support_tickets",
+      "invoice_line_items",
+      "invoices",
+      "discount_redemptions",
+      "subscriptions",
+      "clients",
+      "users",
+      "OrganizationFeature",
+      "Feature",
+      "Organization",
+      "discounts"
+    RESTART IDENTITY CASCADE
+  `)
 })
 
 export { prisma }

@@ -1,9 +1,8 @@
 import {
-  NoteCategory,
   SubscriptionStatus,
-  TaskCompletionStatus,
 } from '@prisma/client';
 import { prisma } from '../../shared/database/prisma';
+import { complianceService } from '../compliance/compliance.service';
 import { PLAN_CATALOG } from '../../shared/constants/plans';
 
 type DateRange = { start: Date; end: Date };
@@ -144,45 +143,23 @@ export class HQAnalyticsService {
     const scores = [];
 
     for (const org of organizations) {
-      const [taskLogs, incidentNotes] = await Promise.all([
-        prisma.taskCompletion.findMany({
-          where: {
-            task: { organizationId: org.id },
-            completedAt: { gte: start, lte: end },
-          },
-          select: {
-            status: true,
-          },
-        }),
-        prisma.note.count({
+      const [readiness, incidentCount] = await Promise.all([
+        complianceService.getOrganizationReadinessScore(org.id),
+        prisma.incident.count({
           where: {
             organizationId: org.id,
-            category: NoteCategory.INCIDENT,
-            createdAt: { gte: start, lte: end },
+            reportedAt: { gte: start, lte: end },
           },
         }),
       ]);
-
-      const totalLogs = taskLogs.length;
-      const completedLogs = taskLogs.filter(
-        (log) => log.status === TaskCompletionStatus.COMPLETE
-      ).length;
-
-      const completionRate = totalLogs === 0 ? 100 : Math.round((completedLogs / totalLogs) * 100);
-      const incidentPenalty = Math.min(incidentNotes * 10, 100);
-      const incidentScore = 100 - incidentPenalty;
-      const healthScore = Math.max(
-        0,
-        Math.round(completionRate * 0.7 + incidentScore * 0.3)
-      );
 
       scores.push({
         organizationId: org.id,
         organizationName: org.name,
         subscriptionStatus: org.subscriptionStatus,
-        completionRate,
-        incidentCount: incidentNotes,
-        healthScore,
+        completionRate: readiness.breakdown.taskCompletion,
+        incidentCount,
+        healthScore: readiness.overall,
       });
     }
 

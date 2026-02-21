@@ -21,6 +21,11 @@ export async function tasksRoutes(server: FastifyInstance) {
     clientId: z.string().min(1).optional(),
     assignedToId: z.string().min(1).optional(),
     search: z.string().min(1).optional(),
+    includeArchived: z.preprocess((value) => {
+      if (value === 'true') return true;
+      if (value === 'false') return false;
+      return value;
+    }, z.boolean().optional()),
     startDate: dateStringSchema.optional(),
     endDate: dateStringSchema.optional(),
   }).passthrough();
@@ -87,8 +92,16 @@ export async function tasksRoutes(server: FastifyInstance) {
 
   const auditExportQuerySchema = z.object({
     clientId: z.string().min(1),
+    includeArchived: z.preprocess((value) => {
+      if (value === 'true') return true;
+      if (value === 'false') return false;
+      return value;
+    }, z.boolean().optional()),
     startDate: dateStringSchema,
     endDate: dateStringSchema,
+  }).strict();
+  const deleteTaskSchema = z.object({
+    reason: z.string().min(1).optional(),
   }).strict();
   const logSchema = z.object({
     taskId: z.string().min(1),
@@ -174,6 +187,7 @@ export async function tasksRoutes(server: FastifyInstance) {
         type: 'object',
         properties: {
           clientId: { type: 'string' },
+          includeArchived: { type: 'boolean' },
           startDate: { type: 'string', format: 'date-time' },
           endDate: { type: 'string', format: 'date-time' },
         },
@@ -188,8 +202,14 @@ export async function tasksRoutes(server: FastifyInstance) {
   }, async (request: any, reply) => {
     const query = validateZod(auditExportQuerySchema, request.query, reply);
     if (!query) return;
-    const { clientId, startDate, endDate } = query;
-    const report = await tasksService.getNarrativeAuditReport(request, clientId, startDate, endDate);
+    const { clientId, startDate, endDate, includeArchived } = query;
+    const report = await tasksService.getNarrativeAuditReport(
+      request,
+      clientId,
+      startDate,
+      endDate,
+      includeArchived === true
+    );
     return { data: report };
   });
 
@@ -293,7 +313,9 @@ export async function tasksRoutes(server: FastifyInstance) {
   }, async (request: any, reply) => {
     const params = validateZod(idParamSchema, request.params, reply);
     if (!params) return;
-    const result = await tasksService.deleteTask(request, params.id);
+    const body = validateZod(deleteTaskSchema, request.body || {}, reply);
+    if (!body) return;
+    const result = await tasksService.deleteTask(request, params.id, body.reason);
     return reply.send(result);
   });
 

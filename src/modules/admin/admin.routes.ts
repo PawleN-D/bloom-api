@@ -1,18 +1,16 @@
 import { FastifyInstance } from 'fastify';
 import { authMiddleware } from '../../shared/middleware/auth.middleware';
-import { securityLogHook } from '../../shared/middleware/security-log';
 import { tenantContext } from '../../shared/middleware/tenant-context';
 import { authorize, Permission } from '../../shared/middleware/authorize';
 import { AdminService } from './admin.service';
 import { UsersService } from '../users/users.service';
+import { incidentsService } from '../incidents/incidents.service';
 import { z } from 'zod';
 import { validateZod } from '../../shared/validation/zod';
 
 export async function adminRoutes(server: FastifyInstance) {
   const adminService = new AdminService();
   const usersService = new UsersService();
-
-  server.addHook('onResponse', securityLogHook);
 
   const inviteSchema = z.object({
     email: z.string().email(),
@@ -30,6 +28,9 @@ export async function adminRoutes(server: FastifyInstance) {
 
   const idParamSchema = z.object({
     id: z.string().min(1),
+  });
+  const noteIdParamSchema = z.object({
+    noteId: z.string().min(1),
   });
 
   const listOrgsQuerySchema = z.object({
@@ -50,6 +51,10 @@ export async function adminRoutes(server: FastifyInstance) {
     name: z.string().min(1),
     slug: z.string().min(1).optional(),
     subdomain: z.string().min(1).optional(),
+    manager_name: z.string().min(1).optional(),
+    manager_email: z.string().email().optional(),
+    managerName: z.string().min(1).optional(),
+    managerEmail: z.string().email().optional(),
     logo: z.string().min(1).optional(),
     primaryColor: z.string().min(1).optional(),
     plan: z.enum(['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE']).optional(),
@@ -350,6 +355,20 @@ export async function adminRoutes(server: FastifyInstance) {
       return reply.send({ data: user });
     } catch (error: any) {
       const status = error.message.includes('not found') ? 404 : 500;
+      return reply.status(status).send({ error: error.message });
+    }
+  });
+
+  server.post('/incidents/promote-from-note/:noteId', {
+    preHandler: [authMiddleware, requireHQAdmin]
+  }, async (request, reply) => {
+    try {
+      const params = validateZod(noteIdParamSchema, request.params, reply);
+      if (!params) return;
+      const incident = await incidentsService.promoteFromNote(request, params.noteId);
+      return reply.status(201).send({ data: incident });
+    } catch (error: any) {
+      const status = error.message === 'Note not found' ? 404 : 500;
       return reply.status(status).send({ error: error.message });
     }
   });

@@ -60,6 +60,17 @@ describe('TasksService', () => {
 
   describe('getTasks', () => {
     it('should return only tasks for current organization', async () => {
+      await prisma.assignment.create({
+        data: {
+          id: 'assignment-1',
+          userId: worker1.id,
+          clientId: client1.id,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
       await prisma.task.create({
         data: {
           id: 'task-1',

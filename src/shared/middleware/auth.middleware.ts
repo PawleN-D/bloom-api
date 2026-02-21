@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { JWTService } from '../../modules/auth/jwt.service'
 import { prisma } from '../database/prisma'
+import { setDatabaseRequestContext } from '../database/request-context'
 
 const jwtService = new JWTService()
 
@@ -43,8 +44,19 @@ export async function authMiddleware(
       })
     }
 
+    const normalizedRole =
+      decoded.role === 'CARE_WORKER' ? 'WORKER' : decoded.role
+    const tenantId = decoded.organizationId ?? null
+    const isGlobalAdmin = decoded.globalAdmin ?? normalizedRole === 'SUPER_ADMIN'
+    const isHqAdmin = normalizedRole === 'ADMIN' && !tenantId
+
+    setDatabaseRequestContext({
+      tenantId,
+      userId: decoded.userId,
+      bypassRls: isGlobalAdmin || isHqAdmin,
+    })
+
     const tenantHeader = normalizeTenantHeader(request.headers['x-tenant'])
-    const isGlobalAdmin = decoded.globalAdmin ?? decoded.role === 'SUPER_ADMIN'
     if (tenantHeader && decoded.organizationId && !isGlobalAdmin) {
       const org = await prisma.organization.findUnique({
         where: { subdomain: tenantHeader },
@@ -58,9 +70,6 @@ export async function authMiddleware(
         })
       }
     }
-
-    const normalizedRole =
-      decoded.role === 'CARE_WORKER' ? 'WORKER' : decoded.role
 
     request.user = {
       id: decoded.userId,

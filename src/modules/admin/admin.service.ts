@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { config } from '../../config/env';
 import { prisma } from '../../shared/database/prisma';
 import { UserRole, UserStatus } from '@prisma/client';
+import { organizationService } from '@/services/OrganizationService';
 import {
   generateUniqueSubdomain,
   isSubdomainAvailable,
@@ -127,6 +128,16 @@ export class AdminService {
         createdAt: new Date(),
         updatedAt: new Date(),
       },
+    });
+
+    organizationService.triggerWelcomeEmail(organization, {
+      manager_name: data.manager_name ?? data.managerName ?? null,
+      manager_email:
+        data.manager_email ??
+        data.managerEmail ??
+        data.billingEmail ??
+        data.billing_email ??
+        null,
     });
     
     return organization;

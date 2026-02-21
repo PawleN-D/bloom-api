@@ -1,17 +1,20 @@
 import { FastifyRequest } from 'fastify';
-import { prisma } from '../../shared/database/prisma';
+import { AuditOperation } from '@prisma/client';
+import { prisma, runInTenantTransaction } from '../../shared/database/prisma';
+import { computeFieldDiff, logAuditEvent } from '../../shared/middleware/audit-trail';
 import { withTenantIsolation } from '../../shared/middleware/tenant-context';
 
 export class NotesService {
   async getNotes(request: FastifyRequest, filters?: any) {
     const user = request.user;
-    const { clientId, authorId, search, significantOnly } = filters || {};
+    const { clientId, authorId, search, significantOnly, includeArchived } = filters || {};
 
     const where = withTenantIsolation(request, {
       clientId: clientId || undefined,
       authorId: authorId || (user?.role === 'WORKER' ? user.id : undefined),
       isLatest: true,
       isSignificant: significantOnly ? true : undefined,
+      deletedAt: includeArchived ? undefined : null,
     });
 
     if (search) {
@@ -51,6 +54,7 @@ export class NotesService {
     const where = withTenantIsolation(request, {
       isLatest: true,
       isSignificant: true,
+      deletedAt: null,
       createdAt: {
         gte: windowStart,
       },
@@ -111,6 +115,10 @@ export class NotesService {
       throw new Error('Note not found');
     }
 
+    if (note.deletedAt) {
+      throw new Error('Note not found');
+    }
+
     return note;
   }
 
@@ -150,7 +158,7 @@ export class NotesService {
     const noteId = require('crypto').randomBytes(16).toString('hex');
     const now = new Date();
 
-    return prisma.note.create({
+    const note = await prisma.note.create({
       data: {
         id: noteId,
         content: data.content,
@@ -182,6 +190,20 @@ export class NotesService {
         },
       },
     });
+
+    await logAuditEvent(request, {
+      operation: AuditOperation.CREATE,
+      entityType: 'Note',
+      entityId: note.id,
+      fieldChanges: computeFieldDiff(null, {
+        category: note.category,
+        clientId: note.clientId,
+        authorId: note.authorId,
+        isSignificant: note.isSignificant,
+      }),
+    });
+
+    return note;
   }
 
   async updateNote(request: FastifyRequest, id: string, data: any) {
@@ -193,6 +215,10 @@ export class NotesService {
 
     if (!existing) {
       throw new Error('Note not found');
+    }
+
+    if (existing.deletedAt) {
+      throw new Error('Cannot update archived note');
     }
 
     if (user?.role === 'WORKER' && existing.authorId !== user.id) {
@@ -216,15 +242,16 @@ export class NotesService {
     const newNoteId = require('crypto').randomBytes(16).toString('hex');
     const now = new Date();
 
-    const [, versionNote] = await prisma.$transaction([
-      prisma.note.update({
+    const versionNote = await runInTenantTransaction(async (tx) => {
+      await tx.note.update({
         where: { id: existing.id },
         data: {
           isLatest: false,
           updatedAt: now,
         },
-      }),
-      prisma.note.create({
+      });
+
+      return tx.note.create({
         data: {
           id: newNoteId,
           content: data.content,
@@ -258,13 +285,30 @@ export class NotesService {
             },
           },
         },
+      });
+    });
+
+    await logAuditEvent(request, {
+      operation: AuditOperation.UPDATE,
+      entityType: 'Note',
+      entityId: rootId,
+      fieldChanges: computeFieldDiff(existing as any, versionNote as any, {
+        onlyKeys: [
+          'content',
+          'category',
+          'editReason',
+          'isSignificant',
+          'clientId',
+          'authorId',
+        ],
       }),
-    ]);
+      reason: data.editReason,
+    });
 
     return versionNote;
   }
 
-  async deleteNote(request: FastifyRequest, id: string) {
+  async deleteNote(request: FastifyRequest, id: string, reason?: string) {
     const user = request.user;
 
     const existing = await prisma.note.findUnique({
@@ -275,12 +319,34 @@ export class NotesService {
       throw new Error('Note not found');
     }
 
+    if (existing.deletedAt) {
+      return { message: 'Note already archived' };
+    }
+
     if (user?.role === 'WORKER' && existing.authorId !== user.id) {
       throw new Error('You can only delete your own notes');
     }
 
-    await prisma.note.delete({ where: { id } });
+    const archived = await prisma.note.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        deletedBy: user?.id || null,
+        deletedReason: reason?.trim() || 'User requested deletion',
+        updatedAt: new Date(),
+      },
+    });
 
-    return { message: 'Note deleted successfully' };
+    await logAuditEvent(request, {
+      operation: AuditOperation.ARCHIVE,
+      entityType: 'Note',
+      entityId: archived.id,
+      fieldChanges: computeFieldDiff(existing as any, archived as any, {
+        onlyKeys: ['deletedAt', 'deletedBy', 'deletedReason'],
+      }),
+      reason: archived.deletedReason || undefined,
+    });
+
+    return { message: 'Note archived successfully' };
   }
 }

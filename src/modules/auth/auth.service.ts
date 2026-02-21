@@ -13,6 +13,8 @@ interface RegisterUserInput {
   organizationId?: string | null
 }
 
+const ALLOWED_SELF_REGISTRATION_ROLES: UserRole[] = [UserRole.WORKER]
+
 interface LoginResponse {
   user: {
     id: string
@@ -37,6 +39,10 @@ export class AuthService {
   }
 
   async registerUser(data: RegisterUserInput) {
+    if (!ALLOWED_SELF_REGISTRATION_ROLES.includes(data.role)) {
+      throw new Error('This role requires an invitation')
+    }
+
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email }
     })
@@ -47,7 +53,7 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(data.password, 10)
 
-    if (data.role !== 'SUPER_ADMIN' && data.role !== 'ADMIN' && !data.organizationId) {
+    if (!data.organizationId) {
       throw new Error('Organization required')
     }
 

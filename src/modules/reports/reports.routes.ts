@@ -34,6 +34,11 @@ export async function reportsRoutes(server: FastifyInstance) {
     endDate: z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
       message: 'endDate must be a valid ISO date',
     }),
+    includeArchived: z.preprocess((value) => {
+      if (value === 'true') return true;
+      if (value === 'false') return false;
+      return value;
+    }, z.boolean().optional()),
   });
 
   const logAuditAccess = async (
@@ -245,6 +250,7 @@ export async function reportsRoutes(server: FastifyInstance) {
         properties: {
           startDate: { type: 'string' },
           endDate: { type: 'string' },
+          includeArchived: { type: 'boolean' },
         },
         required: ['startDate', 'endDate'],
       },
@@ -271,12 +277,13 @@ export async function reportsRoutes(server: FastifyInstance) {
 
     try {
       const { residentId } = request.params;
-      const { startDate, endDate } = parsed.data;
+      const { startDate, endDate, includeArchived } = parsed.data;
       const report = await reportsService.getAuditReportData(
         request,
         residentId,
         startDate,
-        endDate
+        endDate,
+        includeArchived || false
       );
 
       const managerName = await reportsService.getManagerDisplayName(

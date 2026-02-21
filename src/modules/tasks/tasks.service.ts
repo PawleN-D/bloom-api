@@ -1,7 +1,8 @@
 import { FastifyRequest } from 'fastify';
 import { prisma } from '../../shared/database/prisma';
 import { withTenantIsolation } from '../../shared/middleware/tenant-context';
-import { TaskCompletionStatus } from '@prisma/client';
+import { AuditOperation, TaskCompletionStatus } from '@prisma/client';
+import { computeFieldDiff, logAuditEvent } from '../../shared/middleware/audit-trail';
 import { isPrivilegedRole } from '../../shared/constants/privileged-roles';
 
 interface CompleteTaskInput {
@@ -38,7 +39,7 @@ const normalizeCompletionStatus = (
 
 export class TasksService {
   async getTasks(request: FastifyRequest, filters?: any) {
-    const { clientId, search, assignedToId, startDate, endDate } = filters || {};
+    const { clientId, search, assignedToId, startDate, endDate, includeArchived } = filters || {};
     const user = request.user;
     if (!user) {
       throw new Error('User required');
@@ -86,7 +87,10 @@ export class TasksService {
       });
     }
 
-    const where = withTenantIsolation(request, conditions.length ? { AND: conditions } : {});
+    const where = withTenantIsolation(request, {
+      ...(conditions.length ? { AND: conditions } : {}),
+      deletedAt: includeArchived ? undefined : null,
+    });
 
     return prisma.task.findMany({
       where,
@@ -164,6 +168,10 @@ export class TasksService {
       throw new Error('Task not found');
     }
 
+    if (task.deletedAt) {
+      throw new Error('Task not found');
+    }
+
     return task;
   }
 
@@ -203,7 +211,7 @@ export class TasksService {
 
     const taskId = require('crypto').randomBytes(16).toString('hex');
 
-    return prisma.task.create({
+    const task = await prisma.task.create({
       data: {
         id: taskId,
         title: data.title,
@@ -235,6 +243,22 @@ export class TasksService {
         },
       },
     });
+
+    await logAuditEvent(request, {
+      operation: AuditOperation.CREATE,
+      entityType: 'Task',
+      entityId: task.id,
+      fieldChanges: computeFieldDiff(null, {
+        title: task.title,
+        category: task.category,
+        priority: task.priority,
+        dueDate: task.dueDate,
+        clientId: task.clientId,
+        assignedToId: task.assignedToId,
+      }),
+    });
+
+    return task;
   }
 
   async updateTask(request: FastifyRequest, id: string, data: any) {
@@ -244,6 +268,10 @@ export class TasksService {
 
     if (!existing) {
       throw new Error('Task not found');
+    }
+
+    if (existing.deletedAt) {
+      throw new Error('Cannot update archived task');
     }
 
     const updateData: any = {
@@ -282,7 +310,7 @@ export class TasksService {
     }
     if (data.isRecurring !== undefined) updateData.isRecurring = data.isRecurring;
 
-    return prisma.task.update({
+    const updated = await prisma.task.update({
       where: { id },
       data: updateData,
       include: {
@@ -302,9 +330,21 @@ export class TasksService {
         },
       },
     });
+
+    await logAuditEvent(request, {
+      operation: AuditOperation.UPDATE,
+      entityType: 'Task',
+      entityId: updated.id,
+      fieldChanges: computeFieldDiff(existing as any, updated as any, {
+        excludeKeys: ['updatedAt', 'client', 'assignedTo', 'taskCompletions'],
+      }),
+    });
+
+    return updated;
   }
 
-  async deleteTask(request: FastifyRequest, id: string) {
+  async deleteTask(request: FastifyRequest, id: string, reason?: string) {
+    const user = request.user;
     const existing = await prisma.task.findUnique({
       where: withTenantIsolation(request, { id }),
     });
@@ -313,9 +353,31 @@ export class TasksService {
       throw new Error('Task not found');
     }
 
-    await prisma.task.delete({ where: { id } });
+    if (existing.deletedAt) {
+      return { message: 'Task already archived' };
+    }
 
-    return { message: 'Task deleted successfully' };
+    const archived = await prisma.task.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        deletedBy: user?.id || null,
+        deletedReason: reason?.trim() || 'User requested deletion',
+        updatedAt: new Date(),
+      },
+    });
+
+    await logAuditEvent(request, {
+      operation: AuditOperation.ARCHIVE,
+      entityType: 'Task',
+      entityId: archived.id,
+      fieldChanges: computeFieldDiff(existing as any, archived as any, {
+        onlyKeys: ['deletedAt', 'deletedBy', 'deletedReason'],
+      }),
+      reason: archived.deletedReason || undefined,
+    });
+
+    return { message: 'Task archived successfully' };
   }
 
   async completeTask(request: FastifyRequest, id: string, input: CompleteTaskInput = {}) {
@@ -329,6 +391,10 @@ export class TasksService {
     });
 
     if (!task) {
+      throw new Error('Task not found');
+    }
+
+    if (task.deletedAt) {
       throw new Error('Task not found');
     }
 
@@ -411,6 +477,10 @@ export class TasksService {
     });
 
     if (!task) {
+      throw new Error('Task not found');
+    }
+
+    if (task.deletedAt) {
       throw new Error('Task not found');
     }
 
@@ -511,7 +581,8 @@ export class TasksService {
     request: FastifyRequest,
     clientId: string,
     startDate: string,
-    endDate: string
+    endDate: string,
+    includeArchived = false
   ) {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -519,6 +590,7 @@ export class TasksService {
     const tasks = await prisma.task.findMany({
       where: withTenantIsolation(request, {
         clientId,
+        deletedAt: includeArchived ? undefined : null,
       }),
       include: {
         taskCompletions: {
@@ -549,6 +621,7 @@ export class TasksService {
     const notes = await prisma.note.findMany({
       where: withTenantIsolation(request, {
         clientId,
+        deletedAt: includeArchived ? undefined : null,
         createdAt: {
           gte: start,
           lte: end,

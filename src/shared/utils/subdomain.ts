@@ -36,6 +36,7 @@ export function generateSubdomain(organizationName: string): string {
   const normalized = organizationName
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/['’]/g, '')
     .toLowerCase()
     .trim();
 

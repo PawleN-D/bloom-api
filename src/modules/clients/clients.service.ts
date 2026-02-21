@@ -1,5 +1,7 @@
 import { FastifyRequest } from 'fastify';
+import { AuditOperation } from '@prisma/client';
 import { prisma } from '../../shared/database/prisma';
+import { computeFieldDiff, logAuditEvent } from '../../shared/middleware/audit-trail';
 import { withTenantIsolation } from '../../shared/middleware/tenant-context';
 
 export class ClientsService {
@@ -68,6 +70,18 @@ export class ClientsService {
         updatedAt: new Date(),
       } as any,
     });
+
+    await logAuditEvent(request, {
+      operation: AuditOperation.CREATE,
+      entityType: 'Client',
+      entityId: client.id,
+      fieldChanges: computeFieldDiff(null, {
+        firstName: client.firstName,
+        lastName: client.lastName,
+        organizationId: client.organizationId,
+        isActive: client.isActive,
+      }),
+    });
     
     return client;
   }
@@ -105,6 +119,15 @@ export class ClientsService {
       where: { id },
       data: updateData,
     });
+
+    await logAuditEvent(request, {
+      operation: AuditOperation.UPDATE,
+      entityType: 'Client',
+      entityId: client.id,
+      fieldChanges: computeFieldDiff(existing as any, client as any, {
+        excludeKeys: ['updatedAt'],
+      }),
+    });
     
     return client;
   }
@@ -118,12 +141,22 @@ export class ClientsService {
       throw new Error('Client not found');
     }
     
-    await prisma.client.update({
+    const updated = await prisma.client.update({
       where: { id },
       data: { 
         isActive: false,
         updatedAt: new Date(),
       },
+    });
+
+    await logAuditEvent(request, {
+      operation: AuditOperation.ARCHIVE,
+      entityType: 'Client',
+      entityId: updated.id,
+      fieldChanges: computeFieldDiff(existing as any, updated as any, {
+        onlyKeys: ['isActive'],
+      }),
+      reason: 'Soft-deleted via client delete endpoint',
     });
     
     return { message: 'Client deleted successfully' };

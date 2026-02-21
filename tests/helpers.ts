@@ -12,7 +12,7 @@ export async function createOrganization(overrides: Partial<Organization> = {}) 
       id,
       name,
       slug,
-      subdomain: overrides.subdomain || null,
+      subdomain: overrides.subdomain || slug,
       logo: overrides.logo || null,
       primaryColor: overrides.primaryColor || '#0F766E',
       plan: overrides.plan || SubscriptionPlan.STARTER,
@@ -84,5 +84,8 @@ export function buildRequest(params: { user: any; organization: any }) {
   return {
     user: params.user,
     organization: params.organization,
+    headers: {},
+    ip: '127.0.0.1',
+    id: `req_${randomBytes(8).toString('hex')}`,
   } as any
 }

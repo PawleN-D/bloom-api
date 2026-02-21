@@ -9,6 +9,7 @@ import {
   UserRole,
 } from '@prisma/client';
 import { prisma } from '../../shared/database/prisma';
+import { complianceService } from '../compliance/compliance.service';
 import { withTenantIsolation } from '../../shared/middleware/tenant-context';
 
 type StaffInfo = {
@@ -275,6 +276,7 @@ export class ReportsService {
       where: {
         task: {
           organizationId: request.organization.id,
+          deletedAt: null,
         },
         status: TaskCompletionStatus.COMPLETE,
         completedAt: {
@@ -287,6 +289,7 @@ export class ReportsService {
     const totalTasks = await prisma.task.count({
       where: {
         organizationId: request.organization.id,
+        deletedAt: null,
         dueDate: {
           gte: start,
           lte: end,
@@ -294,25 +297,17 @@ export class ReportsService {
       },
     });
 
-    const complianceRate = totalTasks
-      ? Math.round((tasksCompleted / totalTasks) * 100)
-      : 0;
-
-    const incidents = await prisma.note.count({
-      where: withTenantIsolation(request, {
-        category: NoteCategory.INCIDENT,
-        isLatest: true,
-        createdAt: {
-          gte: start,
-          lte: end,
-        },
-      }),
-    });
+    const [readiness, incidents] = await Promise.all([
+      complianceService.getOrganizationReadinessScore(request.organization.id),
+      complianceService.getIncidentCount(request.organization.id, start, end),
+    ]);
+    const complianceRate = totalTasks ? readiness.overall : 0;
 
     const handoverNotes = await prisma.note.count({
       where: withTenantIsolation(request, {
         isSignificant: true,
         isLatest: true,
+        deletedAt: null,
         createdAt: {
           gte: start,
           lte: end,
@@ -394,7 +389,8 @@ export class ReportsService {
     request: FastifyRequest,
     residentId: string,
     startDate: string,
-    endDate: string
+    endDate: string,
+    includeArchived = false
   ): Promise<AuditReportData> {
     if (!request.organization) {
       throw new Error('Organization context required');
@@ -430,6 +426,7 @@ export class ReportsService {
         task: {
           clientId: residentId,
           organizationId: request.organization.id,
+          deletedAt: includeArchived ? undefined : null,
         },
         completedAt: {
           gte: start,
@@ -480,6 +477,7 @@ export class ReportsService {
     const notesInRangeRaw = await prisma.note.findMany({
       where: withTenantIsolation(request, {
         clientId: residentId,
+        deletedAt: includeArchived ? undefined : null,
         createdAt: {
           gte: start,
           lte: end,
@@ -521,6 +519,7 @@ export class ReportsService {
     const editedNoteRoots = await prisma.note.findMany({
       where: withTenantIsolation(request, {
         clientId: residentId,
+        deletedAt: includeArchived ? undefined : null,
         OR: [
           { parentLogId: { not: null } },
           { versions: { some: {} } },
@@ -542,6 +541,7 @@ export class ReportsService {
       ? await prisma.note.findMany({
           where: withTenantIsolation(request, {
             clientId: residentId,
+            deletedAt: includeArchived ? undefined : null,
             OR: [
               { id: { in: rootIds } },
               { parentLogId: { in: rootIds } },
