@@ -4,9 +4,9 @@
   "description": "Bloom Care Worker Management Platform - Backend API",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only --exit-child src/server.ts",
+    "dev": "ts-node-dev --respawn --transpile-only --exit-child src/bootstrap.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/bootstrap.js",
     "test": "jest --coverage",
     "test:watch": "jest --watch",
     "test:integration": "jest --testPathPattern=tests/integration",
