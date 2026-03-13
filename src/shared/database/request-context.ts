@@ -20,6 +20,8 @@ type RequestContextStore = {
 };
 
 const requestContextStorage = new AsyncLocalStorage<RequestContextStore>();
+const requestContextStorage = new AsyncLocalStorage<DatabaseRequestContext>();
+const workerEnvStorage = new AsyncLocalStorage<WorkerEnv>();
 
 export const defaultDatabaseRequestContext: DatabaseRequestContext = {
   tenantId: null,
@@ -66,4 +68,12 @@ export function setRequestPrisma(prisma: PrismaClient) {
 
 export function getRequestPrisma(): PrismaClient | undefined {
   return requestContextStorage.getStore()?.prisma;
+}
+
+export function runWithWorkerEnv<T>(env: WorkerEnv, callback: () => T): T {
+  return workerEnvStorage.run(env, callback);
+}
+
+export function getWorkerEnv(): WorkerEnv | undefined {
+  return workerEnvStorage.getStore();
 }
