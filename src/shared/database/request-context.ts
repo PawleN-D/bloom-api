@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
+import { AsyncLocalStorage } from "node:async_hooks";
 
 export type DatabaseRequestContext = {
   tenantId: string | null;
@@ -6,7 +6,14 @@ export type DatabaseRequestContext = {
   bypassRls: boolean;
 };
 
+export type WorkerEnv = {
+  HYPERDRIVE?: {
+    connectionString: string;
+  };
+};
+
 const requestContextStorage = new AsyncLocalStorage<DatabaseRequestContext>();
+const workerEnvStorage = new AsyncLocalStorage<WorkerEnv>();
 
 export const defaultDatabaseRequestContext: DatabaseRequestContext = {
   tenantId: null,
@@ -20,4 +27,12 @@ export function setDatabaseRequestContext(context: DatabaseRequestContext) {
 
 export function getDatabaseRequestContext() {
   return requestContextStorage.getStore();
+}
+
+export function runWithWorkerEnv<T>(env: WorkerEnv, callback: () => T): T {
+  return workerEnvStorage.run(env, callback);
+}
+
+export function getWorkerEnv(): WorkerEnv | undefined {
+  return workerEnvStorage.getStore();
 }
