@@ -1,7 +1,6 @@
 name = "bloom-api"
 main = "src/index.ts"
 compatibility_date = "2026-03-12"
-compatibility_flags = [ "nodejs_compat" ]
 compatibility_flags = ["nodejs_compat"]
 
 [[hyperdrive]]
