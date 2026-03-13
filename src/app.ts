@@ -182,7 +182,6 @@ app.use("*", async (c, next) => {
     async () => {
       setDatabaseRequestContext({ ...defaultDatabaseRequestContext });
       await next();
-      c.executionCtx?.waitUntil(prisma.$disconnect());
     }
   );
 });
