@@ -8,6 +8,7 @@ import {
   setDatabaseRequestContext,
 } from "./shared/database/request-context";
 import { securityLogHook } from "./shared/middleware/security-log";
+import { config } from "./config/env";
 
 type HookName = "onRequest" | "onResponse";
 type RouteOptions = {
@@ -137,8 +138,34 @@ function createBridge(app: Hono, prefix = "", hooks?: {
 
 const app = new Hono();
 
+const normalizeOrigin = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return trimmed.replace(/\/+$/, "");
+  }
+};
+
+const allowedOrigins = new Set(
+  config.frontendUrls
+    .map(normalizeOrigin)
+    .filter(Boolean)
+);
+
 app.use("*", cors({
-  origin: "*",
+  origin: (origin: string) => {
+    if (!origin) {
+      return "*";
+    }
+
+    const normalizedOrigin = normalizeOrigin(origin);
+    return allowedOrigins.has(normalizedOrigin) ? normalizedOrigin : "";
+  },
   credentials: true,
 }));
 
@@ -155,7 +182,6 @@ app.use("*", async (c, next) => {
     async () => {
       setDatabaseRequestContext({ ...defaultDatabaseRequestContext });
       await next();
-      c.executionCtx?.waitUntil(prisma.$disconnect());
     }
   );
 });
