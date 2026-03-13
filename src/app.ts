@@ -8,6 +8,7 @@ import {
   setDatabaseRequestContext,
 } from "./shared/database/request-context";
 import { securityLogHook } from "./shared/middleware/security-log";
+import { config } from "./config/env";
 
 type HookName = "onRequest" | "onResponse";
 type RouteOptions = {
@@ -137,8 +138,16 @@ function createBridge(app: Hono, prefix = "", hooks?: {
 
 const app = new Hono();
 
+const allowedOrigins = new Set(config.frontendUrls);
+
 app.use("*", cors({
-  origin: "*",
+  origin: (origin: string) => {
+    if (!origin) {
+      return "*";
+    }
+
+    return allowedOrigins.has(origin) ? origin : "";
+  },
   credentials: true,
 }));
 
