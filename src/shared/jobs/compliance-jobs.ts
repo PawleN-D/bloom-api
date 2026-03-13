@@ -1,4 +1,5 @@
 import {
+  Prisma,
   ComplianceAlertSeverity,
   ComplianceAlertStatus,
   ComplianceAlertType,
@@ -54,7 +55,7 @@ async function upsertOpenComplianceAlert(input: {
         severity: input.severity,
         title: input.title,
         description: input.description,
-        metadata: input.metadata ?? undefined,
+        metadata: (input.metadata as Prisma.InputJsonValue) ?? undefined,
         updatedAt: new Date(),
       },
     });
@@ -70,7 +71,7 @@ async function upsertOpenComplianceAlert(input: {
       description: input.description,
       entityType: input.entityType || null,
       entityId: input.entityId || null,
-      metadata: input.metadata ?? undefined,
+      metadata: (input.metadata as Prisma.InputJsonValue) ?? undefined,
     },
   });
 }
