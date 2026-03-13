@@ -5,7 +5,7 @@ import {
   IncidentStatus,
   NoteCategory,
 } from '@prisma/client';
-import { FastifyRequest } from 'fastify';
+import { FastifyRequest } from '@/shared/http/compat';
 import { prisma } from '../../shared/database/prisma';
 import { computeFieldDiff, logAuditEvent } from '../../shared/middleware/audit-trail';
 import { withTenantIsolation } from '../../shared/middleware/tenant-context';

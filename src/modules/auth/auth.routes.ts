@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyRequest } from 'fastify'
+import { FastifyInstance, FastifyRequest } from '@/shared/http/compat'
 import * as authController from './auth.controller'
 import { authMiddleware } from '../../shared/middleware/auth.middleware'
 

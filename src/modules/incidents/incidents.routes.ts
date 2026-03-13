@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance } from '@/shared/http/compat';
 import { IncidentCategory, IncidentSeverity, IncidentStatus } from '@prisma/client';
 import { z } from 'zod';
 import { authMiddleware } from '../../shared/middleware/auth.middleware';

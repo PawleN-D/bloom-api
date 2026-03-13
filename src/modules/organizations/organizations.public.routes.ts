@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance } from '@/shared/http/compat';
 import { z } from 'zod';
 import { prisma } from '../../shared/database/prisma';
 import { setDatabaseRequestContext } from '../../shared/database/request-context';

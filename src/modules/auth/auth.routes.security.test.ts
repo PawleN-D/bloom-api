@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify from '@/shared/http/compat';
 import { authRoutes } from './auth.routes';
 import { createOrganization } from '../../../tests/helpers';
 

@@ -100,7 +100,7 @@ export function createRequestPrismaClient(env: { HYPERDRIVE?: { connectionString
       process.env.NODE_ENV === "development"
         ? ["query", "error", "warn"]
         : ["error"],
-  });
+  } as any);
 
   return basePrisma.$extends({
     query: {

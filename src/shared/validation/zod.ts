@@ -1,4 +1,4 @@
-import { FastifyReply } from 'fastify';
+import { FastifyReply } from '@/shared/http/compat';
 import { ZodSchema } from 'zod';
 
 export function validateZod<T>(

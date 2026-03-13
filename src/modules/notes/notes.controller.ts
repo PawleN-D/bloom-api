@@ -1,4 +1,4 @@
-import { FastifyRequest, FastifyReply } from 'fastify'
+import { FastifyRequest, FastifyReply } from '@/shared/http/compat'
 import { NotesService } from './notes.service'
 import { NoteCategory } from '@prisma/client'
 

@@ -1,4 +1,4 @@
-import { FastifyRequest, FastifyReply } from 'fastify'
+import { FastifyRequest, FastifyReply } from '@/shared/http/compat'
 
 export async function adminMiddleware(
   request: FastifyRequest,

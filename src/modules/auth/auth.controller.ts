@@ -1,4 +1,4 @@
-import { FastifyRequest, FastifyReply } from 'fastify'
+import { FastifyRequest, FastifyReply } from '@/shared/http/compat'
 import { AuthService } from './auth.service'
 import { UserRole } from '@prisma/client'
 import { z } from 'zod'

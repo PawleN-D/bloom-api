@@ -1,4 +1,4 @@
-import { FastifyRequest, FastifyReply } from 'fastify'
+import { FastifyRequest, FastifyReply } from '@/shared/http/compat'
 import { JWTService } from '../../modules/auth/jwt.service'
 import { prisma } from '../database/prisma'
 import { setDatabaseRequestContext } from '../database/request-context'
