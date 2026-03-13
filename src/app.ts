@@ -138,7 +138,24 @@ function createBridge(app: Hono, prefix = "", hooks?: {
 
 const app = new Hono();
 
-const allowedOrigins = new Set(config.frontendUrls);
+const normalizeOrigin = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return trimmed.replace(/\/+$/, "");
+  }
+};
+
+const allowedOrigins = new Set(
+  config.frontendUrls
+    .map(normalizeOrigin)
+    .filter(Boolean)
+);
 
 app.use("*", cors({
   origin: (origin: string) => {
@@ -146,7 +163,8 @@ app.use("*", cors({
       return "*";
     }
 
-    return allowedOrigins.has(origin) ? origin : "";
+    const normalizedOrigin = normalizeOrigin(origin);
+    return allowedOrigins.has(normalizedOrigin) ? normalizedOrigin : "";
   },
   credentials: true,
 }));
