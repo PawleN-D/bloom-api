@@ -1,4 +1,4 @@
-import { FastifyRequest, FastifyReply } from 'fastify';
+import { FastifyRequest, FastifyReply } from '@/shared/http/compat';
 import { isPrivilegedRole } from '../constants/privileged-roles';
 
 export async function verifyManager(

@@ -1,69 +1,31 @@
-import { createServer } from "./app";
+import { createServer } from "node:http";
+import app from "./app";
 import { config } from "./config/env";
-import { startComplianceJobs, stopComplianceJobs } from "./shared/jobs";
 
-const serverPromise = createServer();
-let isShuttingDown = false;
-
-async function gracefulShutdown(signal: string, exitCode = 0) {
-  if (isShuttingDown) {
-    return;
-  }
-  isShuttingDown = true;
-
-  const server = await serverPromise;
-  server.log.info({ signal }, "Shutdown initiated");
-  try {
-    await server.close();
-    await stopComplianceJobs();
-    server.log.info("Server closed");
-  } catch (error) {
-    server.log.error({ err: error }, "Error while closing server");
-  } finally {
-    process.exit(exitCode);
-  }
-}
-
-async function start() {
-  const server = await serverPromise;
-  try {
-    await server.listen({
-      port: config.port,
-      host: "0.0.0.0",
-    });
-
-    await startComplianceJobs(server.log).catch((error) => {
-      server.log.error({ err: error }, "Failed to start compliance jobs");
-    });
-
-    server.log.info(
-      { port: config.port, env: config.nodeEnv },
-      "Server started"
-    );
-    server.log.debug({ routes: server.printRoutes() }, "Registered routes");
-  } catch (err) {
-    server.log.fatal({ err }, "Failed to start server");
-    await gracefulShutdown("startup-failure", 1);
-  }
-}
-
-const signals = ["SIGINT", "SIGTERM"];
-signals.forEach((signal) => {
-  process.on(signal, async () => {
-    await gracefulShutdown(signal, 0);
+const server = createServer(async (req, res) => {
+  const protocol = req.headers["x-forwarded-proto"] ?? "http";
+  const host = req.headers.host ?? `localhost:${config.port}`;
+  const url = `${protocol}://${host}${req.url ?? "/"}`;
+  const body = await new Promise<Buffer>((resolve) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
   });
+
+  const request = new Request(url, {
+    method: req.method,
+    headers: req.headers as Record<string, string>,
+    body: body.length > 0 ? new Uint8Array(body) : undefined,
+  });
+
+  const response = await app.fetch(request, process.env, undefined as any);
+  res.statusCode = response.status;
+  response.headers.forEach((value, key) => res.setHeader(key, value));
+  const responseBuffer = Buffer.from(await response.arrayBuffer());
+  res.end(responseBuffer);
 });
 
-process.on("unhandledRejection", async (reason) => {
-  const server = await serverPromise;
-  server.log.fatal({ err: reason }, "Unhandled promise rejection");
-  await gracefulShutdown("unhandledRejection", 1);
+server.listen(config.port, "0.0.0.0", () => {
+  // eslint-disable-next-line no-console
+  console.info(`Bloom API listening on ${config.port}`);
 });
-
-process.on("uncaughtException", async (error) => {
-  const server = await serverPromise;
-  server.log.fatal({ err: error }, "Uncaught exception");
-  await gracefulShutdown("uncaughtException", 1);
-});
-
-start();

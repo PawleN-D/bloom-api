@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance } from '@/shared/http/compat';
 import { z } from 'zod';
 import { authMiddleware } from '../../shared/middleware/auth.middleware';
 import { tenantContext, withTenantIsolation } from '../../shared/middleware/tenant-context';

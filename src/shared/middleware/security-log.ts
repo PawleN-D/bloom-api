@@ -1,4 +1,4 @@
-import { FastifyRequest, FastifyReply } from 'fastify';
+import { FastifyRequest, FastifyReply } from '@/shared/http/compat';
 import { prisma } from '../database/prisma';
 
 export async function securityLogHook(
@@ -15,7 +15,7 @@ export async function securityLogHook(
     ? forwardedFor[0]
     : (forwardedFor as string | undefined)?.split(',')[0]?.trim() || request.ip || null;
 
-  const action = `${request.method} ${request.routerPath ?? request.url}`.trim();
+  const action = `${request.method} ${(request as any).routerPath ?? request.url}`.trim();
 
   try {
     await prisma.securityLog.create({

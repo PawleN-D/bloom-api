@@ -1,4 +1,4 @@
-import { FastifyRequest } from 'fastify';
+import { FastifyRequest } from '@/shared/http/compat';
 import { AuditOperation } from '@prisma/client';
 import { prisma } from '../../shared/database/prisma';
 import { computeFieldDiff, logAuditEvent } from '../../shared/middleware/audit-trail';

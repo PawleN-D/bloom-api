@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify from '@/shared/http/compat';
 import { NoteCategory, UserRole } from '@prisma/client';
 import { JWTService } from '../auth/jwt.service';
 import { notesRoutes } from './notes.routes';

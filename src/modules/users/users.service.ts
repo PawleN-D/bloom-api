@@ -1,4 +1,4 @@
-import { FastifyRequest } from 'fastify';
+import { FastifyRequest } from '@/shared/http/compat';
 import { prisma } from '../../shared/database/prisma';
 import { withTenantIsolation } from '../../shared/middleware/tenant-context';
 import { canManageUser } from '../../shared/middleware/authorize';

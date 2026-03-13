@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance } from '@/shared/http/compat';
 import { z } from 'zod';
 import { authMiddleware } from '../../../shared/middleware/auth.middleware';
 import { isBloomHQAdmin } from '../../../shared/middleware/is-bloom-hq-admin';

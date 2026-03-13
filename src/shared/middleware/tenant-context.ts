@@ -1,20 +1,8 @@
-import { FastifyRequest, FastifyReply } from 'fastify';
-import { Organization, UserRole } from '@prisma/client';
+import { FastifyRequest, FastifyReply } from '@/shared/http/compat';
 import { prisma } from '../database/prisma';
 import { setDatabaseRequestContext } from '../database/request-context';
 
-declare module 'fastify' {
-  interface FastifyRequest {
-    user?: {
-      id: string;
-      email: string;
-      role: UserRole;
-      organizationId?: string | null;
-      globalAdmin?: boolean;
-    };
-    organization?: Organization;
-  }
-}
+
 
 export async function tenantContext(
   request: FastifyRequest,

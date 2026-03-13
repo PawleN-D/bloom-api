@@ -1,5 +1,5 @@
 import { AuditOperation, Prisma } from '@prisma/client';
-import { FastifyRequest } from 'fastify';
+import { FastifyRequest } from '@/shared/http/compat';
 import { prisma } from '../database/prisma';
 
 type DiffValue = {
