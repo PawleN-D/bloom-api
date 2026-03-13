@@ -1,0 +1,8 @@
+name = "bloom-api"
+main = "src/index.ts"
+compatibility_date = "2026-03-12"
+compatibility_flags = [ "nodejs_compat" ]
+
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "e1531ae45d0a47ad91fea12a392b2655"

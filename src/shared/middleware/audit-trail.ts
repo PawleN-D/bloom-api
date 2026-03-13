@@ -1,4 +1,4 @@
-import { AuditOperation } from '@prisma/client';
+import { AuditOperation, Prisma } from '@prisma/client';
 import { FastifyRequest } from 'fastify';
 import { prisma } from '../database/prisma';
 
@@ -94,7 +94,7 @@ export async function logAuditEvent(
   const userAgent = (request.headers?.['user-agent'] as string) || null;
   const fieldChanges =
     params.fieldChanges && Object.keys(params.fieldChanges).length > 0
-      ? params.fieldChanges
+      ? (params.fieldChanges as Prisma.InputJsonValue)
       : undefined;
 
   await prisma.auditEvent.create({
