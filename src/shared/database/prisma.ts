@@ -84,11 +84,28 @@ const runModelOperation = async (
   return delegate[operation](args);
 };
 
-export function createRequestPrismaClient(env: { HYPERDRIVE?: { connectionString: string } }) {
-  const connectionString = env.HYPERDRIVE?.connectionString;
+type RuntimeEnv = { HYPERDRIVE?: { connectionString: string } };
+
+const prismaClients = new Map<string, PrismaClient>();
+
+const resolveConnectionString = (env?: RuntimeEnv) => {
+  const connectionString = env?.HYPERDRIVE?.connectionString ?? process.env.DATABASE_URL;
 
   if (!connectionString) {
-    throw new Error("Missing env.HYPERDRIVE.connectionString for Prisma adapter initialization.");
+    throw new Error(
+      "No database connection string available. Expected env.HYPERDRIVE.connectionString or DATABASE_URL."
+    );
+  }
+
+  return connectionString;
+};
+
+export function createRequestPrismaClient(env?: RuntimeEnv) {
+  const connectionString = resolveConnectionString(env);
+  const cached = prismaClients.get(connectionString);
+
+  if (cached) {
+    return cached;
   }
 
   const pool = new Pool({ connectionString });
@@ -102,7 +119,7 @@ export function createRequestPrismaClient(env: { HYPERDRIVE?: { connectionString
         : ["error"],
   } as any);
 
-  return basePrisma.$extends({
+  const client = basePrisma.$extends({
     query: {
       $allModels: {
         async $allOperations({ model, operation, args }) {
@@ -115,6 +132,9 @@ export function createRequestPrismaClient(env: { HYPERDRIVE?: { connectionString
       },
     },
   }) as PrismaClient;
+
+  prismaClients.set(connectionString, client);
+  return client;
 }
 
 const prisma = new Proxy({} as PrismaClient, {
