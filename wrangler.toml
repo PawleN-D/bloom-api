@@ -3,9 +3,6 @@ main = "src/index.ts"
 compatibility_date = "2026-03-12"
 compatibility_flags = ["nodejs_compat"]
 
-[build]
-external = ["mock-aws-s3", "aws-sdk", "nock", "@mapbox/node-pre-gyp"]
-
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "e1531ae45d0a47ad91fea12a392b2655"
